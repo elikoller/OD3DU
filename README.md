@@ -144,9 +144,12 @@ open questions: why tf are there differend amounts of ids saved when accessind t
 
 Rayshooting: in the subsection of preprocessing/ray_shooting_pixel_wise_ray_shooting there is a notebook which shows the calculation steps for the calculation of the rays. it dived into the ray generation, and intersection with the boundingboxes, returning not only the intersection point but also the id of the boundingbox which got intersected. Alto the visualizations of the rays are open
 
-open to dos: very slow -> intersection with the boundingboxes can use some speedup work on that
-when the comparison with the gt is not the same: show the transformation in a semantic way: what became what
+open to dos: 
+- very slow -> intersection with the boundingboxes can use some speedup work on that
+- when the comparison with the gt is not the same: show the transformation in a semantic way: what became what
 plot the depht map to see the dimensions ( not highest prio atm but do it)
+- check if the Id are correctly taken!
+
 
 
 
