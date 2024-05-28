@@ -7,7 +7,7 @@
 
 <sup>1</sup>ETH Zurich   
 
-SceneGraphUpdate solves the novel problem of cross-modal update of a 3D dynamic scene graph based off a query image
+I don't knwo what to write here but good template 
 
 
 ![teaser](./repo_info/TeaserImage.jpg)
