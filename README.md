@@ -7,7 +7,7 @@
 
 <sup>1</sup>ETH Zurich   
 
-I don't knwo what to write here but good template 
+I don't knwo what to write here but good template so to do: overwrite his stuff this is only a buffer right now
 
 
 ![teaser](./repo_info/TeaserImage.jpg)
@@ -40,7 +40,7 @@ The project has been tested on Ubuntu 20.04.
 The main dependencies of the project are the following:
 
 
-E:I think some depencencies are ros related so maybe it would be helpful to also mention that or how to skip them :)
+
 ```yaml
 python: 3.8.15
 cuda: 11.6
@@ -50,8 +50,8 @@ You can set up an environment as follows :
 git clone https://github.com/y9miao/VLSG.git
 cd VLSG
 
-conda create -n "VLSG" python=3.8.15
-conda activate VLSG
+conda create -n "BT" python=3.8.15
+conda activate BT
 pip install -r requirement.txt
 ```
 Other dependences:
@@ -60,6 +60,8 @@ Some dependencies are useless and give errors: cat requirement.txt | xargs -n 1 
 
 this installs them and skipps whenever something is not working
 
+
+the thing below is nt needed
 ```bash
 conda activate VLSG
 pip install -r other_deps.txt
@@ -77,7 +79,7 @@ The structure should be:
 ├── 3RScan
 │   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
 │   │   ├──Features2D         <- Pre-computed patches features of query images
-│   │   ├──Features3D         <- Visual features of 3D objects
+│   │   ├──Features3D         <- Visual features of 3D objects not yet
 │   │   ├──orig               <- Scene Graph Data
 │   │   ├──patch_anno         <- Ground truth patch-object annotation of query images
 │   │   meta files
@@ -87,6 +89,7 @@ The structure should be:
 > To generate ``labels.instances.align.annotated.v2.ply`` for each 3RScan scan, please refer to the repo from 
 [here](``https://github.com/ShunChengWu/3DSSG/blob/master/data_processing/transform_ply.py``).  https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py
 
+(to do find out how that works because I got the link with the files from yang but the link expired :(      )
 
 To unzip the sequence files within the §RScan/scenes/  you can use
 directly in the terminal
