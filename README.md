@@ -1,2 +1,171 @@
-# DynamicSceneGraph
-This is the code for my Bachelor Thesis
+<div align='center'>
+<h2 align="center"> SceneGraphUpdate Bachelorthesis of Elena </h2>
+
+<a href="https://y9miao.github.io/">Elena Koller</a><sup>1</sup>, 
+<a href="https://cvg.ethz.ch/team/Dr-Francis-Engelmann">Zuria Bauer</a><sup>1</sup> , 
+<a href="https://cvg.ethz.ch/team/Dr-Daniel-Bela-Barath"> Dániel Béla Baráth</a> <sup>1</sup>
+
+<sup>1</sup>ETH Zurich   
+
+SceneGraphUpdate solves the novel problem of cross-modal update of a 3D dynamic scene graph based off a query image
+
+
+![teaser](./repo_info/TeaserImage.jpg)
+</div>
+
+
+
+
+## News :newspaper:
+
+* **26. Mar 2024**: Code released.
+
+## Code Structure :clapper:
+
+```
+├── BT
+│   ├── preprocessing         <- data preprocessing
+│   ├── configs               <- configuration definition
+│   ├── src
+│   │   │── datasets          <- dataloader for 3RScan and Scannet data
+│   │   
+│   ├── scripts               <- implementation scripts 
+│   │── utils                 <- util functions
+│   │── README.md                    
+```
+
+### Dependencies :memo:
+
+The project has been tested on Ubuntu 20.04.
+The main dependencies of the project are the following:
+
+
+E:I think some depencencies are ros related so maybe it would be helpful to also mention that or how to skip them :)
+```yaml
+python: 3.8.15
+cuda: 11.6
+```
+You can set up an environment as follows :
+```bash
+git clone https://github.com/y9miao/VLSG.git
+cd VLSG
+
+conda create -n "VLSG" python=3.8.15
+conda activate VLSG
+pip install -r requirement.txt
+```
+Other dependences:
+
+Some dependencies are useless and give errors: cat requirement.txt | xargs -n 1 pip install
+
+this installs them and skipps whenever something is not working
+
+```bash
+conda activate VLSG
+pip install -r other_deps.txt
+
+cd thrid_party/Point-NN
+pip install pointnet2_ops_lib/.
+```
+
+## Dataset Generation :hammer:
+### Download Dataset - 3RScan + 3DSSG
+Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/``, all files of 3DSSG to a new ``3RScan/files/`` directory within Scan3R. The additional meta files are available [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view?usp=sharing). Download the additional meta files and move them to ``3RScan/files/``.
+The structure should be:
+
+```
+├── 3RScan
+│   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
+│   │   ├──Features2D         <- Pre-computed patches features of query images
+│   │   ├──Features3D         <- Visual features of 3D objects
+│   │   ├──orig               <- Scene Graph Data
+│   │   ├──patch_anno         <- Ground truth patch-object annotation of query images
+│   │   meta files
+│   ├── scenes                <- scans
+```
+
+> To generate ``labels.instances.align.annotated.v2.ply`` for each 3RScan scan, please refer to the repo from 
+[here](``https://github.com/ShunChengWu/3DSSG/blob/master/data_processing/transform_ply.py``).  https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py
+
+
+To unzip the sequence files within the §RScan/scenes/  you can use
+directly in the terminal
+
+
+
+cd /local/home/ekoller/R3Scan/
+
+
+for folder in scenes/*/; do
+
+
+    (cd "$folder" && unzip -o '*.zip' -d sequence && rm -f *.zip)
+    
+done
+
+
+
+
+### Dataset Pre-process :hammer:
+After installing the dependencies, we download and pre-process the datasets. 
+
+First, we pre-process the scene graph information provided in the 3RScan annotation. The relevant code can be found in the ``data-preprocessing/`` 
+directory.  
+
+E: Some changes happened I think the directory data-preprocessing is now called preprocessing only, also adjustment of the Data_Root_dir to the new one (plus the adding of the definition into the utis scan3r.py that you sent me)
+
+Oh also there is Data root dir in a lot of graphs below 
+
+Don't forget to set the env variables "VLSG_SPACE" as the repository path,  set "Data_ROOT_DIR" as the path to "3RScan" dataset and set "CONDA_BIN" to accordingly in the bash script.
+
+```bash
+bash scripts/preprocess/scan3r_data_preprocess.sh
+```
+The result processed data will be save to "{Data_ROOT_DIR}/files/orig".
+<!-- > __Note__ To adhere to our evaluation procedure, please do not change the seed value in the files in ``configs/`` directory.  -->
+
+### Generating Ground Truth Patch-Object Annotastion
+To generate ground truth annotation, use : 
+```bash
+bash scripts/gt_annotations/scan3r_gt_annotations.sh
+```
+This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno
+
+
+
+
+### Elena's Code
+In the preprocessing added the calculation of the boundingboxes. For this there is also a file in the preprocessing calles boundingboxVisuals. In this notebook everything about the boundingbox generation can be found and also some visualizations. The modifications added to the preprocess_scan3r.py file are clearly marked as modified by me in case of need for change.
+
+open questions: why tf are there differend amounts of ids saved when accessind the data differently -> texted yang wait for answer
+
+Rayshooting: in the subsection of preprocessing/ray_shooting_pixel_wise_ray_shooting there is a notebook which shows the calculation steps for the calculation of the rays. it dived into the ray generation, and intersection with the boundingboxes, returning not only the intersection point but also the id of the boundingbox which got intersected. Alto the visualizations of the rays are open
+
+open to dos: very slow -> intersection with the boundingboxes can use some speedup work on that
+when the comparison with the gt is not the same: show the transformation in a semantic way: what became what
+plot the depht map to see the dimensions ( not highest prio atm but do it)
+
+
+
+## BibTeX :pray:
+```
+@misc{miao2024scenegraphloc,
+      title={SceneGraphLoc: Cross-Modal Coarse Visual Localization on 3D Scene Graphs}, 
+      author={Yang Miao and Francis Engelmann and Olga Vysotska and Federico Tombari and Marc Pollefeys and Dániel Béla Baráth},
+      year={2024},
+      eprint={2404.00469},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+ ```
+
+## Acknowledgments :recycle:
+In this project we use (parts of) the official implementations of the following works and thank the respective authors for sharing the code of their methods: 
+- [SGAligner](https://github.com/sayands/sgaligner) 
+- [OpenMask3D](https://openmask3d.github.io/)
+- [Lip-Loc](https://liploc.shubodhs.ai/) 
+- [Lidar-Clip](https://github.com/atonderski/lidarclip)
+- [AnyLoc](https://github.com/AnyLoc/AnyLoc)
+- [CVNet](https://github.com/sungonce/CVNet)
+- [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG)
+
