@@ -145,10 +145,16 @@ open questions: why tf are there differend amounts of ids saved when accessind t
 Rayshooting: in the subsection of preprocessing/ray_shooting_pixel_wise_ray_shooting there is a notebook which shows the calculation steps for the calculation of the rays. it dived into the ray generation, and intersection with the boundingboxes, returning not only the intersection point but also the id of the boundingbox which got intersected. Alto the visualizations of the rays are open
 
 open to dos: 
+- to correct the intersection stuff start with reference scan -> the boundingboxes should hit
+- visualize the mesh: there I had to change the rgb to bgr or something wtf? What was it before??? What does this mean for the rest :((((((
+- also plot the boundingboxes in three- looks weird form angle but align
+
+- also plot the rays in there -> now we got the porblem:: wtf look again at matricies or maybe some issue with meter conversion but else same structure as Yangs intersection so wtf
+
 - very slow -> intersection with the boundingboxes can use some speedup work on that
 - when the comparison with the gt is not the same: show the transformation in a semantic way: what became what
 plot the depht map to see the dimensions ( not highest prio atm but do it)
-- check if the Id are correctly taken!
+- check if the Id are correctly taken!: should be correctly taken. according to FAQ id in object.jason is the same as objdctId or Id in semseg.json
 
 
 
