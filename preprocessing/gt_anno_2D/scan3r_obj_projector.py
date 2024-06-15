@@ -46,9 +46,11 @@ class Scan3RIMGProjector():
         self.save_dir = osp.join(self.scans_dir, 'files', 'gt_projection')
         self.save_color_dir = osp.join(self.save_dir, 'color')
         self.save_obj_dir = osp.join(self.save_dir, 'obj_id')
+        self.save_global_dir = osp.join(self.save_dir, 'global_id')
         common.ensure_dir(self.save_dir)
         common.ensure_dir(self.save_color_dir)
         common.ensure_dir(self.save_obj_dir)
+        common.ensure_dir(self.save_global_dir)
       
     def __len__(self):
         return len(self.scan_ids)
@@ -57,8 +59,7 @@ class Scan3RIMGProjector():
         # get related files
         scan_id = self.scan_ids[scan_idx]
         mesh_file = osp.join(self.scans_scenes_dir, scan_id, "labels.instances.annotated.v2.ply")
-        imgs_folder = osp.join(self.scans_scenes_dir, scan_id, "sequence")
-        intrinsic_file = osp.join(imgs_folder, "_info.txt")
+        
         
         # get img info and camera intrinsics 
         camera_info = scan3r.load_intrinsics(self.scans_scenes_dir, scan_id)
@@ -69,21 +70,15 @@ class Scan3RIMGProjector():
         # load labels
         plydata_npy = np.load(osp.join(self.scans_scenes_dir, scan_id, "data.npy"))
         obj_labels = plydata_npy['objectId']
+        global_labels = plydata_npy['globalId']
     
-        # load mesh
-        #TO DO: load the bounding boxes
+       # load mesh and scene
         mesh = o3d.io.read_triangle_mesh(mesh_file)
         mesh_triangles = np.asarray(mesh.triangles)
+        #also load the colour
         colors = np.asarray(mesh.vertex_colors)*255.0
         colors = colors.round()
         num_triangles = mesh_triangles.shape[0]
-        
-        # load scene 
-        #TO DO load the image
-        mesh = o3d.io.read_triangle_mesh(mesh_file)
-        mesh_triangles = np.asarray(mesh.triangles)
-        colors = np.asarray(mesh.vertex_colors)*255.0
-        colors = colors.round()
         scene = o3d.t.geometry.RaycastingScene()
         scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
         
@@ -93,37 +88,45 @@ class Scan3RIMGProjector():
         
         # project 3D model
         obj_id_imgs = {}
+        global_id_imgs = {}
         color_imgs = {}
         for idx in range(0, len(poses), step):
             frame_idx = frame_idxs[idx]
             img_pose = poses[idx]
             img_pose_inv = np.linalg.inv(img_pose)
-            color_map, obj_id_map = self.segmentResult(
+            color_map, obj_id_map, global_id_map = self.segmentResult(
                 scene, intrinsics, img_pose_inv, img_width, img_height, 
-                mesh_triangles, num_triangles, colors, obj_labels
+                mesh_triangles, num_triangles, colors, obj_labels, global_labels
             )
             obj_id_imgs[frame_idx] = obj_id_map
+            global_id_imgs[frame_idx] = global_id_map
             color_imgs[frame_idx] = color_map
             
         # save 
         save_scan_color_dir = osp.join(self.save_color_dir, scan_id)
         save_scan_obj_dir = osp.join(self.save_obj_dir, scan_id)
+        save_scan_global_dir = osp.join(self.save_global_dir, scan_id)
         common.ensure_dir(save_scan_color_dir)
         common.ensure_dir(save_scan_obj_dir)
+        common.ensure_dir(save_scan_global_dir)
         
         for frame_idx in obj_id_imgs:
             obj_id_img = obj_id_imgs[frame_idx]
             color_img = color_imgs[frame_idx]
+            global_id_img = global_id_imgs[frame_idx]
             
             img_name = "frame-"+str(frame_idx)+".jpg"
             obj_id_img_file = osp.join(save_scan_obj_dir, img_name)
             color_img_file = osp.join(save_scan_color_dir, img_name)
+            global_id_img_file = osp.join(save_scan_global_dir, img_name)
+            
             cv2.imwrite(obj_id_img_file, obj_id_img)
             cv2.imwrite(color_img_file, color_img)
+            cv2.imwrite(global_id_img_file, global_id_img)
             
     
     def segmentResult(self, scene, intrinsics, extrinsics, width, height,
-                      mesh_triangles, num_triangles, colors, obj_ids):
+                      mesh_triangles, num_triangles, colors, obj_ids, global_ids):
         
         rays = o3d.t.geometry.RaycastingScene.create_rays_pinhole(
             intrinsic_matrix = intrinsics.astype(np.float64),
@@ -140,9 +143,12 @@ class Scan3RIMGProjector():
         
         color_map = np.zeros((height,width,3), dtype=np.uint8)
         obj_id_map = np.zeros((height,width), dtype=np.uint8)
+        global_id_map = np.zeros((height,width), dtype=np.uint8)
+
         color_map[hit_triangles_ids_valid_masks] = colors[hit_points_ids_valid]
         obj_id_map[hit_triangles_ids_valid_masks] = obj_ids[hit_points_ids_valid]
-        return color_map, obj_id_map
+        global_id_map[hit_triangles_ids_valid_masks] = global_ids[hit_points_ids_valid]
+        return color_map, obj_id_map, global_id_map
     
         
 if __name__ == '__main__':
