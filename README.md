@@ -56,6 +56,8 @@ pip install -r requirement.txt
 ```
 Other dependences:
 
+also we need python -m pip install pyviz3d for the visualization 
+
 Some dependencies are useless and give errors: cat requirement.txt | xargs -n 1 pip install
 
 this installs them and skipps whenever something is not working
@@ -132,7 +134,7 @@ To generate ground truth annotation, use :
 ```bash
 bash scripts/gt_annotations/scan3r_gt_annotations.sh
 ```
-This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno
+This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno only for the eval and train set tho
 
 
 
