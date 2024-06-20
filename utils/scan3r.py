@@ -323,7 +323,7 @@ def load_gt_2D_anno(data_root_dir, scan_id, skip=None):
         anno_imgs[frame_idx] = anno_img
     return anno_imgs
     
-#given the path 3RScan/files/3RScan.json it returns a dicionary with scan_id as keys and the transformation matrix from the scan to reference
+#given the path 3RScan/files/3RScan.json it returns a dicionary with scan_id as keys and the transformation matrix from the reference to the rescan
 def read_transform_mat(filename):
     rescan2ref = {}
     with open(filename , "r") as read_file:
