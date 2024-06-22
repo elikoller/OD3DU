@@ -5,6 +5,7 @@ from glob import glob
 from plyfile import PlyData, PlyElement
 from scipy.spatial.transform import Rotation as R
 import pickle
+import cv2
 
 """
 start of added by Elena
