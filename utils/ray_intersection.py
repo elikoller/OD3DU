@@ -7,6 +7,7 @@ import json
 import pickle
 import sys
 
+
 ws_dir = '/local/home/ekoller/BT'
 print(ws_dir)
 sys.path.append(ws_dir)
@@ -203,7 +204,8 @@ def project_mesh_diff(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_numb
     return
 
 
-#this function gives the transformation on a pixelwise level between the current mesh and the new mesh
+
+    #this function gives the transformation on a pixelwise level between the current mesh and the new mesh
 #this method goes over the projection and the semantically segmented image provided as input from (new_scan_id)
 #it stores the mask following the logic described above
 def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_number):
@@ -222,6 +224,7 @@ def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, fram
     gt_color = gt_colors[frame_number]
     gt_obj_id = gt_obj_ids[frame_number]
     gt_global_id= gt_global_ids[frame_number]
+
     # scan_color_file = osp.join(data_dir, "gt_tmp", new_scan_id, "color","gt_frame-{}.jpg".format(frame_number))
     # scan_obj_file = osp.join(data_dir, "gt_tmp", new_scan_id, "obj_id","gt_frame-{}.jpg".format(frame_number))
     # scan_global_file = osp.join(data_dir, "gt_tmp", new_scan_id, "global_id","gt_frame-{}.jpg".format(frame_number))
@@ -231,7 +234,9 @@ def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, fram
     # gt_global_id= cv2.imread(scan_global_file, cv2.IMREAD_UNCHANGED)
 
 
-
+    """
+    until here the dimensions and entries are as excpected, however not something is wrong with the way the matrix is saved and filled
+    """
     #get the rayintersection of the mesh based on the new computations
     #compute the intersections and maps
     project_mesh_diff(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_number)
@@ -244,20 +249,24 @@ def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, fram
     pj_obj_id = cv2.imread(obj_path, cv2.IMREAD_UNCHANGED)
     pj_global_id = cv2.imread(gloabl_path, cv2.IMREAD_UNCHANGED)
 
+   
 
+    img_height, img_width, channels = pj_color.shape
     #iterate through the whole image 
-    curr_res_color = np.full_like(gt_color, -1)
-    curr_res_obj_id = np.full_like(gt_color, -1)
-    curr_res_global_id = np.full_like(gt_color, -1)
+    curr_res_color = np.full_like(gt_color, 0)
+    curr_res_obj_id = np.full((img_height,img_width,1), 0)
+    curr_res_global_id = np.full((img_height,img_width,1), 0)
+   
 
-    new_res_color = np.full_like(gt_color, -1)
-    new_res_obj_id = np.full_like(gt_color, -1)
-    new_res_global_id = np.full_like(gt_color, -1)
+    new_res_color = np.full_like(gt_color, 0)
+    new_res_obj_id = np.full((img_height,img_width,1), 0)
+    new_res_global_id = np.full((img_height,img_width,1), 0)
 
     #make the mask: originally black: wherever there is a difference take the value of the new_scan_id gt
 
-    img_height, img_width, channels = curr_res_color.shape
+    
 
+   
     for i in range(img_height):
         for j in range(img_width):
             if (pj_obj_id[i][j] != gt_obj_id[i][j]):
@@ -288,6 +297,7 @@ def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, fram
 
     #save the files in the corresponding directories
         
+    
     img_name = "new_val_mask_pose_in_"+ str(new_scan_id)+"_"+str(frame_number)+".jpg"
     obj_id_img_file = osp.join(save_mask_obj_dir, img_name)
     global_img_file = osp.join(save_mask_global_dir, img_name)
@@ -306,6 +316,7 @@ def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, fram
     cv2.imwrite(color_img_file, curr_res_color)
 
     return 
+
 
 
 

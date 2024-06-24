@@ -62,6 +62,8 @@ Some dependencies are useless and give errors: cat requirement.txt | xargs -n 1 
 
 this installs them and skipps whenever something is not working
 
+also installed
+
 
 the thing below is nt needed
 ```bash
