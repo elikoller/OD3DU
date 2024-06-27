@@ -32,59 +32,8 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     objects_attributes = []
     barry_centers = []
 
-    # Modified by Elena add boundingboxes
-    bounding_boxes = [ ]
 
-    json_bounding_box = osp.join(data_dir, 'scenes', scan_id, 'semseg.v2.json')
-
-    with open(json_bounding_box, 'r') as file:
-        data = json.load(file)
-
-    for object in data['segGroups']:
-        # the axes lengths give the length in each direction of one axis -> from centroid we have to move in 
-        # both  directions of x in + and -
-        axes_lengths = object['obb']['axesLengths']
-
-        # the normaliyed axis are the directions in which the boundingbox points to in comparison to the coord system
-        #we can use them to create a transformationmatrix! every row is one of the vector
-        normalized_axes = object['obb']["normalizedAxes"]
-
-        #construct the matrix using collumnformat ( each vecor becomes a collumn based on 2d example)
-        matrix = np.reshape(normalized_axes, (3,3), order= "F")
-
-        #compute the new axislengths
-        lengths = matrix.dot(axes_lengths)
-        
-        #the centriod of the object
-        centroid = object['obb']["centroid"]
-
-        # calculate the new points one time in + direction one time in -
-        # get half of the lengths to add in each direction
-        points = np.zeros
-        half_lengths = lengths / 2.0
-
-        #not pretty bus shows clearly where it is going looks like the following BT/Illustrations
-        corners = np.array([
-        centroid + np.array([+1, +1, -1]) * half_lengths, #1
-        centroid + np.array([-1, +1, -1]) * half_lengths, #5
-        centroid + np.array([-1, -1, -1]) * half_lengths, #7
-        centroid + np.array([+1, -1, -1]) * half_lengths, #3
-        centroid + np.array([+1, +1, +1]) * half_lengths, #0
-        centroid + np.array([-1, +1, +1]) * half_lengths, #4
-        centroid + np.array([-1, -1, +1]) * half_lengths, #6
-        centroid + np.array([+1, -1, +1]) * half_lengths, #2  
-        ])
-        #add the cornerarray of the object to the bounding box
-        bounding_boxes.append(corners)
-
-    #transform the coordinates from the rescan coordinate system into reference scan coordinates
-    bounding_boxes = scan3r.get_box_in_ref_coord(data_dir, bounding_boxes, scan_id)
-
-    
-    file.close() 
-
-
-     # done modification
+  
     ply_data_npy_file = osp.join(data_dir, 'scenes', scan_id, 'data.npy')
     ply_data = None
 
@@ -171,6 +120,64 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
 
     # if len(pairs) == 0:
     #     return -1
+
+
+
+    #add the bounding boxes for the ids
+    bounding_boxes = []
+    json_bounding_box = osp.join(data_dir, 'scenes', scan_id, 'semseg.v2.json')
+
+    with open(json_bounding_box, 'r') as file:
+        data = json.load(file)
+
+    for id in objects_ids:
+        for object in data['segGroups']:
+                #only get the ids which are visible
+                if( object["objectId"] == id):
+                    # the axes lengths give the length in each direction of one axis -> from centroid we have to move in 
+                    # both  directions of x in + and -
+                    axes_lengths = object['obb']['axesLengths']
+
+                    # the normaliyed axis are the directions in which the boundingbox points to in comparison to the coord system
+                    #we can use them to create a transformationmatrix! every row is one of the vector
+                    normalized_axes = object['obb']["normalizedAxes"]
+
+                    #construct the matrix using collumnformat ( each vecor becomes a collumn based on 2d example)
+                    matrix = np.reshape(normalized_axes, (3,3), order= "F")
+
+                    #compute the new axislengths
+                    lengths = matrix.dot(axes_lengths)
+                    
+                    #the centriod of the object
+                    centroid = object['obb']["centroid"]
+
+                    # calculate the new points one time in + direction one time in -
+                    # get half of the lengths to add in each direction
+                    points = np.zeros
+                    half_lengths = lengths / 2.0
+
+                    #not pretty bus shows clearly where it is going looks like the following BT/Illustrations
+                    corners = np.array([
+                    centroid + np.array([+1, +1, -1]) * half_lengths, #1
+                    centroid + np.array([-1, +1, -1]) * half_lengths, #5
+                    centroid + np.array([-1, -1, -1]) * half_lengths, #7
+                    centroid + np.array([+1, -1, -1]) * half_lengths, #3
+                    centroid + np.array([+1, +1, +1]) * half_lengths, #0
+                    centroid + np.array([-1, +1, +1]) * half_lengths, #4
+                    centroid + np.array([-1, -1, +1]) * half_lengths, #6
+                    centroid + np.array([+1, -1, +1]) * half_lengths, #2  
+                    ])
+                    #add the cornerarray of the object to the bounding box
+                    bounding_boxes.append(corners)
+               
+
+    #transform the coordinates from the rescan coordinate system into reference scan coordinates
+    bounding_boxes = scan3r.get_box_in_ref_coord(data_dir, bounding_boxes, scan_id)
+
+    
+    file.close() 
+
+
 
     # Root Object - object with highest outgoing degree
     all_edge_objects_ids = np.array(pairs).flatten()

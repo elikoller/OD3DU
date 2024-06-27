@@ -5,52 +5,18 @@ import cv2
 import open3d as o3d
 import json
 import pickle
-import sys
+from utils import scan3r
 
 
-ws_dir = '/local/home/ekoller/BT'
-print(ws_dir)
-sys.path.append(ws_dir)
-from utils import scan3r,visualisation
+# This code segment does the following: given a mesh of the scene, create the camera rays and intersect them with the mesh- For every camera pose do the following: the camera pose is given in the original frame of the scan: if reference scan in reference coordinates, if rescan in rescan coordinates. To do the computations the designdecision is the following:  use the aligned version of the rescan so that the mesh is in the reference coordinate system. in this coordinate system you can then compare the two things. Compare the object of the intersection of the current mesh with the one of the new mesh
+
+# Logic for the try out data: in the gt_tmp we have for every scene a folder with the frame of the ground truth projection
+# in the projection file we have the following way of storing things projection/curr_scene_id/(color/global_id/obj_id)/projection_pose_in_new_scene_id_000033
+
+
 
 
 #the function which actually does the intersection part
-
-#this code returns the colour segmentation of the gt projection on pixelwise level
-def load_gt_color_annos(data_dir, scan_id, skip=None):
-    anno_imgs = {}
-    frame_idxs = scan3r.load_frame_idxs(osp.join(data_dir, "scenes"), scan_id, skip)
-    anno_folder = osp.join(data_dir, "files", 'gt_projection/color', scan_id)
-    for frame_idx in frame_idxs:
-        anno_color_file = osp.join(anno_folder, "frame-{}.jpg".format(frame_idx))
-        anno_color = cv2.imread(anno_color_file, cv2.IMREAD_UNCHANGED)
-        anno_imgs[frame_idx] = anno_color
-    return anno_imgs
-
-#this code returns the object_id segmentation of the gt projection on pixelwise level
-def load_gt_obj_id_annos(data_dir, scan_id, skip=None):
-    anno_imgs = {}
-    frame_idxs = scan3r.load_frame_idxs(osp.join(data_dir, "scenes"), scan_id, skip)
-    anno_folder = osp.join(data_dir, "files", 'gt_projection/obj_id', scan_id)
-    for frame_idx in frame_idxs:
-        anno_obj_file = osp.join(anno_folder, "frame-{}.jpg".format(frame_idx))
-        anno_obj = cv2.imread(anno_obj_file, cv2.IMREAD_UNCHANGED)
-        anno_imgs[frame_idx] = anno_obj
-    return anno_imgs
-
-
-#this code returns the colour segmentation of the gt projection on pixelwise level
-def load_gt_gloabl_id_annos(data_dir, scan_id, skip=None):
-    anno_imgs = {}
-    frame_idxs = scan3r.load_frame_idxs(osp.join(data_dir, "scenes"), scan_id, skip)
-    anno_folder = osp.join(data_dir, "files", 'gt_projection/global_id', scan_id)
-    for frame_idx in frame_idxs:
-        anno_global_file = osp.join(anno_folder, "frame-{}.jpg".format(frame_idx))
-        anno_global = cv2.imread(anno_global_file, cv2.IMREAD_UNCHANGED)
-        anno_imgs[frame_idx] = anno_global
-    return anno_imgs
-
-
 def segmentResult(scene, intrinsics, extrinsics, width, height,
                       mesh_triangles, num_triangles, colors, obj_ids, global_ids):
         
@@ -81,7 +47,6 @@ def segmentResult(scene, intrinsics, extrinsics, width, height,
         global_id_map[hit_triangles_ids_valid_masks] = global_ids[hit_points_ids_valid]
         
         return color_map, obj_id_map, global_id_map
-
 
 
 
@@ -172,6 +137,8 @@ def project_mesh_diff(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_numb
         obj_id_imgs[frame_idx] = obj_id_map
         global_id_imgs[frame_idx] = global_id_map
         color_imgs[frame_idx] = color_map
+
+   
         
     #create directories (here tmp to try out & save 
     save_scan_color_dir = osp.join(data_dir, "proj", curr_scan_id, "color")
@@ -200,143 +167,3 @@ def project_mesh_diff(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_numb
         success_obj = cv2.imwrite(obj_id_img_file, obj_id_img)
         success_global = cv2.imwrite(global_img_file, global_id_img)
         success_color = cv2.imwrite(color_img_file, color_img)
-    
-    return
-
-
-
-    #this function gives the transformation on a pixelwise level between the current mesh and the new mesh
-#this method goes over the projection and the semantically segmented image provided as input from (new_scan_id)
-#it stores the mask following the logic described above
-def get_transformation_mask(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_number):
-
-    #the ground truth of the new scan id must exist already
-    #project_mesh_gt_generation(data_dir,scenes_dir, new_scan_id, frame_number)
-    
-
-
-    #get the information of the rgb image of new_scan_id based on the ground truth (this code is for after the ground truth has beeen generated)
-    gt_colors = load_gt_color_annos(data_dir,new_scan_id)
-    gt_obj_ids = load_gt_obj_id_annos(data_dir, new_scan_id)
-    gt_global_ids = load_gt_gloabl_id_annos(data_dir,new_scan_id)
-
-    #get the infor for the specific frame number
-    gt_color = gt_colors[frame_number]
-    gt_obj_id = gt_obj_ids[frame_number]
-    gt_global_id= gt_global_ids[frame_number]
-
-    # scan_color_file = osp.join(data_dir, "gt_tmp", new_scan_id, "color","gt_frame-{}.jpg".format(frame_number))
-    # scan_obj_file = osp.join(data_dir, "gt_tmp", new_scan_id, "obj_id","gt_frame-{}.jpg".format(frame_number))
-    # scan_global_file = osp.join(data_dir, "gt_tmp", new_scan_id, "global_id","gt_frame-{}.jpg".format(frame_number))
-
-    # gt_color = cv2.imread(scan_color_file, cv2.IMREAD_UNCHANGED)
-    # gt_obj_id = cv2.imread(scan_obj_file, cv2.IMREAD_UNCHANGED)
-    # gt_global_id= cv2.imread(scan_global_file, cv2.IMREAD_UNCHANGED)
-
-
-    """
-    until here the dimensions and entries are as excpected, however not something is wrong with the way the matrix is saved and filled
-    """
-    #get the rayintersection of the mesh based on the new computations
-    #compute the intersections and maps
-    project_mesh_diff(data_dir, scenes_dir,curr_scan_id, new_scan_id, frame_number)
-    color_path = osp.join(data_dir,"proj",curr_scan_id, "color","projection_pose_in_{}_{}.jpg".format(new_scan_id,frame_number))
-    obj_path = osp.join(data_dir,"proj",curr_scan_id, "obj_id","projection_pose_in_{}_{}.jpg".format(new_scan_id,frame_number))
-    gloabl_path = osp.join(data_dir,"proj",curr_scan_id, "global_id","projection_pose_in_{}_{}.jpg".format(new_scan_id,frame_number))
-
-    #access the files
-    pj_color = cv2.imread(color_path, cv2.IMREAD_UNCHANGED)
-    pj_obj_id = cv2.imread(obj_path, cv2.IMREAD_UNCHANGED)
-    pj_global_id = cv2.imread(gloabl_path, cv2.IMREAD_UNCHANGED)
-
-   
-
-    img_height, img_width, channels = pj_color.shape
-    #iterate through the whole image 
-    curr_res_color = np.full_like(gt_color, 0)
-    curr_res_obj_id = np.full((img_height,img_width,1), 0)
-    curr_res_global_id = np.full((img_height,img_width,1), 0)
-   
-
-    new_res_color = np.full_like(gt_color, 0)
-    new_res_obj_id = np.full((img_height,img_width,1), 0)
-    new_res_global_id = np.full((img_height,img_width,1), 0)
-
-    #make the mask: originally black: wherever there is a difference take the value of the new_scan_id gt
-
-    
-
-   
-    for i in range(img_height):
-        for j in range(img_width):
-            if (pj_obj_id[i][j] != gt_obj_id[i][j]):
-                #the new values in the modified area
-                new_res_color[i][j] = gt_color[i][j]
-                new_res_obj_id[i][j] = gt_obj_id[i][j]
-                new_res_global_id[i][j] = gt_global_id[i][j]
-
-                #the values which are impacted in curr 
-                curr_res_color[i][j] = pj_color[i][j]
-                curr_res_obj_id[i][j] = pj_obj_id[i][j]
-                curr_res_global_id[i][j] = pj_global_id[i][j]
-
-
-    #also save the files as needed
-    #create directories (here tmp to try out & save 
-    save_mask_color_dir = osp.join(data_dir, "mask", curr_scan_id, "color")
-    save_mask_obj_dir = osp.join(data_dir, "mask", curr_scan_id, "obj_id")
-    save_mask_global_dir = osp.join(data_dir, "mask", curr_scan_id, "global_id")
-
-    #make sure the directories exist
-    for dir_path in [save_mask_color_dir, save_mask_obj_dir, save_mask_global_dir]:
-        try:
-            os.makedirs(dir_path, exist_ok=True)
-            
-        except Exception as e:
-            print(f"Failed to create directory {dir_path}: {e}")
-
-    #save the files in the corresponding directories
-        
-    
-    img_name = "new_val_mask_pose_in_"+ str(new_scan_id)+"_"+str(frame_number)+".jpg"
-    obj_id_img_file = osp.join(save_mask_obj_dir, img_name)
-    global_img_file = osp.join(save_mask_global_dir, img_name)
-    color_img_file = osp.join(save_mask_color_dir, img_name)
-    cv2.imwrite(obj_id_img_file, new_res_obj_id)
-    cv2.imwrite(global_img_file, new_res_global_id)
-    cv2.imwrite(color_img_file, new_res_color)
-
-
-    img_name = "curr_val_mask_pose_in_"+ str(new_scan_id)+"_"+str(frame_number)+".jpg"
-    obj_id_img_file = osp.join(save_mask_obj_dir, img_name)
-    global_img_file = osp.join(save_mask_global_dir, img_name)
-    color_img_file = osp.join(save_mask_color_dir, img_name)
-    cv2.imwrite(obj_id_img_file, curr_res_obj_id)
-    cv2.imwrite(global_img_file, curr_res_global_id)
-    cv2.imwrite(color_img_file, curr_res_color)
-
-    return 
-
-
-
-
-   
-            
-   
-
-
-
-
-
-
-
-   
-
-
- 
-
-    
-    
-
-
-
