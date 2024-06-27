@@ -9,6 +9,8 @@ import argparse
 import random
 import sys
 import json
+from plyfile import PlyData
+import open3d as o3d
 from yacs.config import CfgNode as CN
 ws_dir = osp.dirname(osp.dirname(osp.dirname(osp.abspath(__file__))))
 print(ws_dir)
@@ -125,59 +127,57 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
 
     #add the bounding boxes for the ids
     bounding_boxes = []
-    json_bounding_box = osp.join(data_dir, 'scenes', scan_id, 'semseg.v2.json')
+    object_id_pkl = objects_ids
 
-    with open(json_bounding_box, 'r') as file:
-        data = json.load(file)
+    """
+    Compute the boundingboxes based on the mesh
 
-    for id in objects_ids:
-        for object in data['segGroups']:
-                #only get the ids which are visible
-                if( object["objectId"] == id):
-                    # the axes lengths give the length in each direction of one axis -> from centroid we have to move in 
-                    # both  directions of x in + and -
-                    axes_lengths = object['obb']['axesLengths']
+    """ 
+    #access the things for the mesh
+    pathToMesh = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
+    ply_data = PlyData.read(pathToMesh)
+    vertices = ply_data['vertex'].data
+    vertex_array = np.array([list(vertex) for vertex in vertices])
 
-                    # the normaliyed axis are the directions in which the boundingbox points to in comparison to the coord system
-                    #we can use them to create a transformationmatrix! every row is one of the vector
-                    normalized_axes = object['obb']["normalizedAxes"]
+    # Extract x, y, z coordinates and objectId
+    x = vertex_array[:, 0]
+    y = vertex_array[:, 1]
+    z = vertex_array[:, 2]
+    object_ids_mesh = vertex_array[:, 6]  # Assuming 'objectId' is the 7th property
 
-                    #construct the matrix using collumnformat ( each vecor becomes a collumn based on 2d example)
-                    matrix = np.reshape(normalized_axes, (3,3), order= "F")
+    unique_object_ids = np.unique(object_ids_mesh)
 
-                    #compute the new axislengths
-                    lengths = matrix.dot(axes_lengths)
-                    
-                    #the centriod of the object
-                    centroid = object['obb']["centroid"]
+    bounding_boxes_tmp = {}
+    #go over every id and compute the box
+    for obj_id_pkl in unique_object_ids:
+                    #we want the same ids for the boxes
+                    if obj_id_pkl in object_id_pkl:
+                            # Filter vertices by object ID
+                            obj_mask = object_ids_mesh == obj_id_pkl
+                            obj_coords = np.vstack((x[obj_mask], y[obj_mask], z[obj_mask])).T
 
-                    # calculate the new points one time in + direction one time in -
-                    # get half of the lengths to add in each direction
-                    points = np.zeros
-                    half_lengths = lengths / 2.0
+                            min_coords = np.min(obj_coords, axis=0)
+                            max_coords = np.max(obj_coords, axis=0)
 
-                    #not pretty bus shows clearly where it is going looks like the following BT/Illustrations
-                    corners = np.array([
-                    centroid + np.array([+1, +1, -1]) * half_lengths, #1
-                    centroid + np.array([-1, +1, -1]) * half_lengths, #5
-                    centroid + np.array([-1, -1, -1]) * half_lengths, #7
-                    centroid + np.array([+1, -1, -1]) * half_lengths, #3
-                    centroid + np.array([+1, +1, +1]) * half_lengths, #0
-                    centroid + np.array([-1, +1, +1]) * half_lengths, #4
-                    centroid + np.array([-1, -1, +1]) * half_lengths, #6
-                    centroid + np.array([+1, -1, +1]) * half_lengths, #2  
-                    ])
-                    #add the cornerarray of the object to the bounding box
-                    bounding_boxes.append(corners)
-               
+                            corners = np.array([
+                            [max_coords[0], max_coords[1], min_coords[2]], #0
+                            [min_coords[0], max_coords[1], min_coords[2]], #1
+                            [min_coords[0], min_coords[1], min_coords[2]], #2
+                            [max_coords[0], min_coords[1], min_coords[2]], #3
+                            [max_coords[0], max_coords[1], max_coords[2]] , #4
+                            [min_coords[0], max_coords[1], max_coords[2]], #5
+                            [min_coords[0], min_coords[1], max_coords[2]], #6
+                            [max_coords[0], min_coords[1], max_coords[2]], #7  
+                            ])
+                            bounding_boxes_tmp[obj_id_pkl] = corners
 
-    #transform the coordinates from the rescan coordinate system into reference scan coordinates
-    bounding_boxes = scan3r.get_box_in_ref_coord(data_dir, bounding_boxes, scan_id)
+    #sort such that only the correct ones remain
+    bounding_boxes_tmp = {k: bounding_boxes_tmp[k] for k in object_id_pkl if k in bounding_boxes_tmp}
 
+    bounding_boxes = list(bounding_boxes_tmp.values())
     
-    file.close() 
-
-
+    
+   
 
     # Root Object - object with highest outgoing degree
     all_edge_objects_ids = np.array(pairs).flatten()
