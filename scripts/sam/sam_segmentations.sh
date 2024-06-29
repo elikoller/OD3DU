@@ -17,4 +17,4 @@ python ./sam/sam_segmentation.py \
     --split val
 python ./sam/sam_segmentation.py \
     --config ./configs/sam_config \
-    --split val
+    --split test
