@@ -160,6 +160,12 @@ open to dos:
 plot the depht map to see the dimensions ( not highest prio atm but do it)
 - check if the Id are correctly taken!: should be correctly taken. according to FAQ id in object.jason is the same as objdctId or Id in semseg.json
 
+### Generating Boundingboxes for the input rgb using 
+the bigger goal is to generate dinov features for different objects in the input images and matching them to the objects in the scene for this we use sam segment anything to compute boundinboxes for the objects. the boundingboxes get extracted and saved into "{Data_ROOT_DIR}/files/sam_data
+```bash
+bash scripts/sam_data/sam_segmentations.sh
+```
+
 
 
 

@@ -4,11 +4,17 @@ import glob
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 import cv2
 import numpy as np
+import json
 import matplotlib.pyplot as plt
 import os.path as osp
+import sys
 from collections import Counter
+ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
+print("ws_dir ", ws_dir)
+sys.path.append(ws_dir)
 from sam import sam_config
 import argparse
+from tqdm import tqdm
 
 #initialization for cuda stuff
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -19,13 +25,14 @@ print(f"Using device: {DEVICE}")
 
 #initialization of needed variables
 MODEL_TYPE = sam_config.MODEL_TYPE
-CHECKPOINT_PATH = sam_config.MODEL_TYPE
+CHECKPOINT_PATH = sam_config.CHECKPOINT_PATH
 patch_width = sam_config.patch_width
 patch_hight = sam_config.patch_height
 
 
 #generates the mask using sam
 def generate_sam_data(path_to_img):
+    #print("checkpointpath", CHECKPOINT_PATH)
 
     sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
 
@@ -46,7 +53,8 @@ def generate_sam_data(path_to_img):
 
         # Generate segmentation mask
         output_mask = mask_generator.generate(image_rgb)
-        print(output_mask)
+        #print(output_mask)
+        return output_mask
 
     except RuntimeError as e:
         if 'out of memory' in str(e):
@@ -55,7 +63,7 @@ def generate_sam_data(path_to_img):
         else:
             raise e
         
-    return output_mask
+    
 
 
 #returns for every semantic regtion of thet frame x_min,x_max, y_min, y_max, height, width
@@ -92,10 +100,8 @@ def get_all_sam_semantic_boxes_scene(data_dir, scan_id):
 
     #create a directory in which the boxes get saved
     output_path = osp.join(data_dir, "sam_data", scan_id, "bboxes")
-    try:
-        os.makedirs(output_path, exist_ok=True)
-    except Exception as e:
-        print(f"Failed to create directory {output_path}: {e}")
+    if not osp.exists(output_path):
+        os.makedirs(output_path)
 
     for file in file_list:
         frame_boxes = get_sam_boundingboxes_frame(file)
@@ -108,24 +114,49 @@ def get_all_sam_semantic_boxes_scene(data_dir, scan_id):
         #make a new file to save the information of the boundingboxes
         box_file_path = osp.join(output_path, filename)
         success_obj = np.save(box_file_path, frame_boxes)
+        return
 
 
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', dest='config', default='', type=str, help='3R Scan configuration file name')
     parser.add_argument('--split', dest='split', default='train', type=str, help='split to run subscan generation on')
-    parser.add_argument('--rescan', dest='rescan', default=False, action='store_true', help='get ref scan or rescan')
+
 
     args = parser.parse_args()
     return parser, args
         
 
 if __name__ == '__main__':
-    _, args = parse_args()
-    cfg = args.config
-    spl
- 
+    #get the split from the bash input
+    _, args= parse_args()
+    split = args.split
+
+    #access the data
+    data_dir = sam_config.data_dir
+    json_path = osp.join(data_dir,"files","3RScan.json")
+    
+    rescan_ids = []
+    #open the json file with all the scans
+    with open(json_path, 'r') as file:
+        data = json.load(file)
+  
+    #only necessary for the rescans of scene
+    for scan_data in data:
+        if scan_data["type"]  == split:
+            for scan in scan_data['scans']:
+                rescan_ids.append(scan['reference'] )
+
+    #comput the boundingboxes for all the sequences of the reference scans
+    print("---Start: Computation of the boundingboxes for the input rgb-images using sam---")
+    for rescan_id in tqdm(rescan_ids, desc='Computing bounding boxes'):
+        get_all_sam_semantic_boxes_scene(data_dir, rescan_id)
+
+    print("---Finish: Computation of the boundingboxes for the input rgb-images using sam---")
+
+
+    
+   
     
  
