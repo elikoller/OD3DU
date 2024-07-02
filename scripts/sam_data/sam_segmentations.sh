@@ -9,6 +9,10 @@ export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 source $CONDA_BIN/activate sam
 
 cd $VLSG_SPACE
-python ./sam/sam_segmentation.py \
+python ./preprocessing/sam/sam_segmentation.py \
     --split train
+# python ./preprocessing/sam/sam_segmentation.py \
+#     --split val
+# python ./preprocessing/sam/sam_segmentation.py \
+#     --split test
    
