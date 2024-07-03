@@ -93,8 +93,9 @@ class ObjVisualEmbGen(data.Dataset):
         scan_dirname = osp.join(scan_dirname, 'predicted') if self.use_predicted else scan_dirname
         self.scans_dir = osp.join(cfg.data.root_dir, scan_dirname)
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
-        self.mode = 'orig' if self.split == 'train' else cfg.sgaligner.val.data_mode
-        self.scans_files_dir_mode = osp.join(self.scans_files_dir, self.mode)
+        #self.mode = 'orig' if self.split == 'train' else cfg.sgaligner.val.data_mode
+        #self.scans_files_dir_mode = osp.join(self.scans_files_dir, self.mode)
+        self.scans_files_dir_mode = osp.join(self.scans_files_dir)
 
         # 2D images
         self.image_w = self.cfg.data.img.w
@@ -147,7 +148,7 @@ class ObjVisualEmbGen(data.Dataset):
             self.image_path[scan_id] = scan3r.load_frame_paths(self.data_root_dir, scan_id)
                 
         # load 2D gt obj id annotation
-        self.gt_2D_anno_folder = osp.join(self.scans_files_dir, 'gt_projection/obj_id_pkl')
+        self.gt_2D_anno_folder = osp.join(self.scans_files_dir, "patch_anno/patch_anno_16_9")
         self.obj_2D_annos_pathes = {}
         for scan_id in self.scan_ids:
             anno_2D_file = osp.join(self.gt_2D_anno_folder, "{}.pkl".format(scan_id))
@@ -270,13 +271,15 @@ class ObjVisualEmbGen(data.Dataset):
                 #cls_token = ret[:, 0, :]
                 #mean_patch = cls_token.mean(dim=0)
                 #now we dont want the token
-                ret_except_cls = ret[:, 1:, :]
-                mean_except_cls = ret_except_cls.mean(dim=0)
+                mean_ret = ret.mean(dim=0, keepdim=True) #[num_levels, 1+num_patches, desc_dim] 
+                #we dont want the CLS token
+                mean_patches = mean_ret[:, 1:, :]  #[1, 1+num_patches, desc_dim] 
+
 
                 
                 
         self.time_used += time.time() - start
-        return mean_except_cls.cpu().detach().numpy()
+        return mean_patches[0].cpu().detach().numpy()
         
     def __len__(self):
         return len(self.data_items)
