@@ -17,6 +17,7 @@ from utils import common, scan3r
 
 # associate image patch and obj id
 
+#I don't think I actually need this also adjust the script
 class Scan3ROBJAssociator():
     def __init__(self, data_root_dir, split, cfg):
         self.cfg = cfg

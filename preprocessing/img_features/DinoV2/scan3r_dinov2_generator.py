@@ -158,10 +158,10 @@ class Scan3rDinov2Generator():
     
 
      #this codesegment takes in a semantic segmentation of the projection with sam and translates it into the object ids
-    def bounding_boxes_for_projection(self, data_dir, scan_id, file_name):
+    def bounding_boxes_for_projection(self,data_dir, scan_id, file_name):
         #access the projection
 
-        proj_rgb= osp.join(data_dir, "files/gt_projection", "obj_id", scan_id,file_name +".jpg")
+        proj_rgb= osp.join(data_dir, "files/gt_projection", "obj_id", scan_id,"frame-" + file_name +".jpg")
         #print("proj file", proj_rgb)
         obj_mat = cv2.imread(proj_rgb, cv2.IMREAD_UNCHANGED)
         img_height, img_width= obj_mat.shape
@@ -226,10 +226,11 @@ class Scan3rDinov2Generator():
             for frame_idx in frame_idxs_sublist:
                 img_path = img_paths[frame_idx]
                 img = Image.open(img_path).convert('RGB')
+                dat_dir = self.data_root_dir
 
                 # Load bounding boxes and patch IDs for the current frame
                 #path_proj_bboxes = osp.join(self.data_root_dir, "bboxes", scan_id, "gt_projection", f"frame-{frame_idx}.npy")
-                bboxes = self.bounding_boxes_for_projection(self,self.data_root_dir, scan_id, frame_idx)
+                bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
 
                 # Initialize dictionary for embeddings per object ID in the current frame
                 frame_features[frame_idx] = {}
@@ -299,12 +300,12 @@ def main():
     scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train')
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')
-    scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'test')
-    scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')
+    # scan3r_gcvit_generator.register_model()
+    # scan3r_gcvit_generator.generateFeatures()
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'test')
+    # scan3r_gcvit_generator.register_model()
+    # scan3r_gcvit_generator.generateFeatures()
     
 if __name__ == "__main__":
     main()
