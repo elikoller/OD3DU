@@ -65,7 +65,13 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
         obj_pt_idx = np.where(ply_data['objectId'] == object_id)
         obj_pcl = points[obj_pt_idx]
 
+        #since we rely on the projections we need all ids to be available in our graph -> basis calculation with every one of the pointclouds -> all object ids are inthere
         if obj_pcl.shape[0] < cfg.preprocess.min_obj_points: continue
+            # Handle cases with fewer points < 4
+            # cx = np.mean(obj_pcl[:, 0])
+            # cy = np.mean(obj_pcl[:, 1])
+            # cz = np.mean(obj_pcl[:, 2])
+        
         
         hull = ConvexHull(obj_pcl)
         cx = np.mean(hull.points[hull.vertices,0])
@@ -134,47 +140,47 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
 
     """ 
     #access the things for the mesh
-    pathToMesh = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
-    ply_data = PlyData.read(pathToMesh)
-    vertices = ply_data['vertex'].data
-    vertex_array = np.array([list(vertex) for vertex in vertices])
+    # pathToMesh = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
+    # ply_data = PlyData.read(pathToMesh)
+    # vertices = ply_data['vertex'].data
+    # vertex_array = np.array([list(vertex) for vertex in vertices])
 
-    # Extract x, y, z coordinates and objectId
-    x = vertex_array[:, 0]
-    y = vertex_array[:, 1]
-    z = vertex_array[:, 2]
-    object_ids_mesh = vertex_array[:, 6]  # Assuming 'objectId' is the 7th property
+    # # Extract x, y, z coordinates and objectId
+    # x = vertex_array[:, 0]
+    # y = vertex_array[:, 1]
+    # z = vertex_array[:, 2]
+    # object_ids_mesh = vertex_array[:, 6]  # Assuming 'objectId' is the 7th property
 
-    unique_object_ids = np.unique(object_ids_mesh)
+    # unique_object_ids = np.unique(object_ids_mesh)
 
-    bounding_boxes_tmp = {}
-    #go over every id and compute the box
-    for obj_id_pkl in unique_object_ids:
-                    #we want the same ids for the boxes
-                    if obj_id_pkl in object_id_pkl:
-                            # Filter vertices by object ID
-                            obj_mask = object_ids_mesh == obj_id_pkl
-                            obj_coords = np.vstack((x[obj_mask], y[obj_mask], z[obj_mask])).T
+    # bounding_boxes_tmp = {}
+    # #go over every id and compute the box
+    # for obj_id_pkl in unique_object_ids:
+    #                 #we want the same ids for the boxes
+    #                 if obj_id_pkl in object_id_pkl:
+    #                         # Filter vertices by object ID
+    #                         obj_mask = object_ids_mesh == obj_id_pkl
+    #                         obj_coords = np.vstack((x[obj_mask], y[obj_mask], z[obj_mask])).T
 
-                            min_coords = np.min(obj_coords, axis=0)
-                            max_coords = np.max(obj_coords, axis=0)
+    #                         min_coords = np.min(obj_coords, axis=0)
+    #                         max_coords = np.max(obj_coords, axis=0)
 
-                            corners = np.array([
-                            [max_coords[0], max_coords[1], min_coords[2]], #0
-                            [min_coords[0], max_coords[1], min_coords[2]], #1
-                            [min_coords[0], min_coords[1], min_coords[2]], #2
-                            [max_coords[0], min_coords[1], min_coords[2]], #3
-                            [max_coords[0], max_coords[1], max_coords[2]] , #4
-                            [min_coords[0], max_coords[1], max_coords[2]], #5
-                            [min_coords[0], min_coords[1], max_coords[2]], #6
-                            [max_coords[0], min_coords[1], max_coords[2]], #7  
-                            ])
-                            bounding_boxes_tmp[obj_id_pkl] = corners
+    #                         corners = np.array([
+    #                         [max_coords[0], max_coords[1], min_coords[2]], #0
+    #                         [min_coords[0], max_coords[1], min_coords[2]], #1
+    #                         [min_coords[0], min_coords[1], min_coords[2]], #2
+    #                         [max_coords[0], min_coords[1], min_coords[2]], #3
+    #                         [max_coords[0], max_coords[1], max_coords[2]] , #4
+    #                         [min_coords[0], max_coords[1], max_coords[2]], #5
+    #                         [min_coords[0], min_coords[1], max_coords[2]], #6
+    #                         [max_coords[0], min_coords[1], max_coords[2]], #7  
+    #                         ])
+    #                         bounding_boxes_tmp[obj_id_pkl] = corners
 
-    #sort such that only the correct ones remain
-    bounding_boxes_tmp = {k: bounding_boxes_tmp[k] for k in object_id_pkl if k in bounding_boxes_tmp}
+    # #sort such that only the correct ones remain
+    # bounding_boxes_tmp = {k: bounding_boxes_tmp[k] for k in object_id_pkl if k in bounding_boxes_tmp}
 
-    bounding_boxes = list(bounding_boxes_tmp.values())
+    # bounding_boxes = list(bounding_boxes_tmp.values())
     
     
    
@@ -231,7 +237,7 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     data_dict['rel_trans'] = rel_trans
     data_dict['root_obj_id'] = root_obj_id
     #modified by elena
-    data_dict['bounding_boxes'] = bounding_boxes 
+    #data_dict['bounding_boxes'] = bounding_boxes 
     return data_dict
 
 def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'train', data_file = 'data'):

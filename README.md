@@ -112,6 +112,8 @@ done
 
 
 
+also some more confusing stuff is the following: the dataset did not provide the graphdata for the evaluation set so in this paper: the original validation set was taken and then split into validation and test. hence for the dataset only the test and validation set get accessed
+
 
 ### Dataset Pre-process :hammer:
 After installing the dependencies, we download and pre-process the datasets. 
@@ -137,6 +139,9 @@ To generate ground truth annotation, use :
 bash scripts/gt_annotations/scan3r_gt_annotations.sh
 ```
 This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno only for the eval and train set tho
+this also directly computes the boundingboxes for the objects in the projections for every scan
+
+while it migh be confusing the ground truth for the reference is actually the data we already have provided: our assumption is that we have the mesh -> so there for the reference scans we will actually compute with them. for the rescans however this is the actual ground truth which we will also use for comparison later on
 
 
 
@@ -166,6 +171,14 @@ the bigger goal is to generate dinov features for different objects in the input
 bash scripts/sam_data/sam_segmentations.sh
 ```
 
+### Patch-Level Features Pre-compute
+In order to speed up training, we pre-compute the patch-level features with 
+      [Dino v2](https://dinov2.metademolab.com/). 
+To generate the features, use : 
+```bash
+bash scripts/features2D/scan3r_dinov2.sh
+```
+This will create patch-level features for query images and save in "{Data_ROOT_DIR}/Features2D/DinoV2_16_9_scan".  
 
 
 

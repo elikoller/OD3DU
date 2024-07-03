@@ -26,8 +26,7 @@ print(f"Using device: {DEVICE}")
 #initialization of needed variables
 MODEL_TYPE = sam_config.MODEL_TYPE
 CHECKPOINT_PATH = sam_config.CHECKPOINT_PATH
-patch_width = sam_config.patch_width
-patch_hight = sam_config.patch_height
+
 
 
 #generates the mask using sam
@@ -99,7 +98,7 @@ def get_all_sam_semantic_boxes_scene(data_dir, scan_id):
     #print("file list", file_list)
 
     #create a directory in which the boxes get saved
-    output_path = osp.join(data_dir, "sam_data", scan_id, "bboxes")
+    output_path = osp.join(data_dir, "bboxes", scan_id, "sam")
     if not osp.exists(output_path):
         os.makedirs(output_path)
 
@@ -137,20 +136,23 @@ if __name__ == '__main__':
     data_dir = sam_config.data_dir
     json_path = osp.join(data_dir,"files","3RScan.json")
     
-    rescan_ids = []
+    scan_ids = []
     #open the json file with all the scans
     with open(json_path, 'r') as file:
         data = json.load(file)
   
-    #only necessary for the rescans of scene
+    #get all the 
     for scan_data in data:
         if scan_data["type"]  == split:
+            #get the reference
+            scan_ids.append(scan_data["reference"])
+            #get all the rescans
             for scan in scan_data['scans']:
-                rescan_ids.append(scan['reference'] )
+                scan_ids.append(scan['reference'] )
 
     #comput the boundingboxes for all the sequences of the reference scans
     print("---Start: Computation of the boundingboxes for the input rgb-images using sam---")
-    for rescan_id in tqdm(rescan_ids, desc='Computing bounding boxes'):
+    for rescan_id in tqdm(scan_ids, desc='Computing bounding boxes'):
         get_all_sam_semantic_boxes_scene(data_dir, rescan_id)
 
     print("---Finish: Computation of the boundingboxes for the input rgb-images using sam---")

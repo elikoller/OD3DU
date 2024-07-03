@@ -12,7 +12,6 @@ cd $VLSG_SPACE
 python ./preprocessing/sam/sam_segmentation.py \
     --split train
 # python ./preprocessing/sam/sam_segmentation.py \
-#     --split val
-# python ./preprocessing/sam/sam_segmentation.py \
-#     --split test
+#     --split validation
+
    

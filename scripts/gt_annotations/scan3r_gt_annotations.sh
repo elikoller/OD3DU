@@ -13,3 +13,8 @@ python ./preprocessing/gt_anno_2D/scan3r_obj_projector.py
 python ./preprocessing/gt_anno_2D/scan3r_obj_img_associate.py \
     --config ./preprocessing/gt_anno_2D/gt_anno.yaml
 
+# python ./preprocessing/gt_anno_2D/gt_bboxes.py \
+#     --split train
+# python ./preprocessing/gt_anno_2D/gt_bboxes.py \
+#     --split validation
+

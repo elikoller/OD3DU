@@ -18,7 +18,7 @@ preprocess :
   pc_resolutions      : [64, 128, 256, 512]
   subscenes_per_scene : 7
   filter_segment_size : 512
-  min_obj_points      : 50
+  min_obj_points      : 4
   anchor_type_name    : '' 
 
 model :
