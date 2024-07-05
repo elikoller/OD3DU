@@ -65,27 +65,32 @@ def generate_sam_data(path_to_img):
     
 
 
-#returns for every semantic regtion of thet frame x_min,x_max, y_min, y_max, height, width
-def get_sam_boundingboxes_frame(path_to_img):
+#returns for every semantic regtion of thet frame x_min, y_min, width, height and the mask on pitelwise level
+def get_sam_boundingboxes_and_mask_frame(path_to_img):
 
     data_dict = generate_sam_data(path_to_img)
     #print("sam ressult", data_dict)
 
-    bboxes = []
+    bounding_boxes = []
      #iterate through evey segmentation field to get the result
+    unique_obj_id = 0
     for val in data_dict:
+        unique_obj_id = unique_obj_id + 1
         bbox = val['bbox']
+        mask = val['segmentation']
+        #choose this restoring because the boundingboxes of the projection are stored the same -> better for the code
         x_min, y_min, width, height = bbox
-        x_max = x_min + width
-        y_max = y_min + height
-        bboxes.append(np.array([x_min,x_max, y_min, y_max, height, width]))
-
-
-    return bboxes
+        bounding_boxes.append({
+                    'object_id': unique_obj_id,
+                    'bbox': [x_min, y_min, width, height],
+                    "mask": mask
+                })
+        
+    return bounding_boxes
 
 
 #wil be called by the rescan input image, saves boundingboxes at sam_data in the folder of R3Scan
-def get_all_sam_semantic_boxes_scene(data_dir, scan_id):
+def get_all_sam_semantic_boxes_and_mask_scene(data_dir, scan_id):
 
     #go to the folder of the scene
     folder_path = osp.join(data_dir, "scenes", scan_id, "sequence")
@@ -98,12 +103,12 @@ def get_all_sam_semantic_boxes_scene(data_dir, scan_id):
     #print("file list", file_list)
 
     #create a directory in which the boxes get saved
-    output_path = osp.join(data_dir, "bboxes", scan_id, "sam")
+    output_path = osp.join(data_dir, "files/sam_data", scan_id)
     if not osp.exists(output_path):
         os.makedirs(output_path)
 
     for file in file_list:
-        frame_boxes = get_sam_boundingboxes_frame(file)
+        frame_boxes = get_sam_boundingboxes_and_mask_frame(file)
 
         #get the name of the file currently accessed
         filename = os.path.basename(file)
@@ -153,7 +158,7 @@ if __name__ == '__main__':
     #comput the boundingboxes for all the sequences of the reference scans
     print("---Start: Computation of the boundingboxes for the input rgb-images using sam---")
     for rescan_id in tqdm(scan_ids, desc='Computing bounding boxes'):
-        get_all_sam_semantic_boxes_scene(data_dir, rescan_id)
+        get_all_sam_semantic_boxes_and_mask_scene(data_dir, rescan_id)
 
     print("---Finish: Computation of the boundingboxes for the input rgb-images using sam---")
 

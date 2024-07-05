@@ -49,10 +49,16 @@ from dataclasses import dataclass
 #     device = torch.device("cuda")
 # larg = tyro.cli(LocalArgs)
 
+"""
+These features are only computed to see how close they are to the scenegraph features
+"""
 class Scan3rDinov2Generator():
-    def __init__(self, cfg, split):
+    def __init__(self, cfg, split, for_proj = False, for_sam = True):
         self.cfg = cfg
-        
+
+        #to know how to change the directory name based on the input images
+        self.proj = for_proj
+        self.sam = for_sam
         # 3RScan data info
         ## sgaliner related cfg
         self.split = split
@@ -127,7 +133,12 @@ class Scan3rDinov2Generator():
         self.step = self.cfg.data.img.img_step
         
         ## out dir 
-        self.out_dir = osp.join(self.scans_files_dir, 'Features2D', self.model_name)
+        if(self.proj):
+            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name)
+
+        if(self.sam):
+            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/sam', self.model_name)
+
         common.ensure_dir(self.out_dir)
         
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
@@ -156,12 +167,19 @@ class Scan3rDinov2Generator():
         feature = self.model.backbone(imgs_tensor)[-1]
         return feature
     
+    #accesses the bounding boxes of the objects computed by sam and saved in the same format as the ones for the projection will be calculated
+    def bounging_boxes_for_sam(self, data_dir,scan_id, frame_number):
+        output_path = osp.join(data_dir, "files/sam_data", scan_id, "frame-" + frame_number + ".npy")
+        sam_data = np.load(output_path)
+
+        return sam_data
+        
 
      #this codesegment takes in a semantic segmentation of the projection with sam and translates it into the object ids
-    def bounding_boxes_for_projection(self,data_dir, scan_id, file_name):
+    def bounding_boxes_for_projection(self,data_dir, scan_id, frame_number):
         #access the projection
 
-        proj_rgb= osp.join(data_dir, "files/gt_projection", "obj_id", scan_id,"frame-" + file_name +".jpg")
+        proj_rgb= osp.join(data_dir, "files/gt_projection", "obj_id", scan_id,"frame-" + frame_number +".jpg")
         #print("proj file", proj_rgb)
         obj_mat = cv2.imread(proj_rgb, cv2.IMREAD_UNCHANGED)
         img_height, img_width= obj_mat.shape
@@ -230,7 +248,13 @@ class Scan3rDinov2Generator():
 
                 # Load bounding boxes and patch IDs for the current frame
                 #path_proj_bboxes = osp.join(self.data_root_dir, "bboxes", scan_id, "gt_projection", f"frame-{frame_idx}.npy")
-                bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
+                if self.proj:
+                    #get the projection boundingboxes
+                    bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
+
+                if self.sam:
+                    #get the boundingboxes for the sam data
+                    bboxes = self.bounging_boxes_for_sam(dat_dir,scan_id, frame_idx)
 
                 # Initialize dictionary for embeddings per object ID in the current frame
                 frame_features[frame_idx] = {}
@@ -296,8 +320,9 @@ def main():
 
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
-    
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train')
+
+    #do it for the projections first
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')
