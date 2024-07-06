@@ -53,7 +53,7 @@ from dataclasses import dataclass
 These features are only computed to see how close they are to the scenegraph features
 """
 class Scan3rDinov2Generator():
-    def __init__(self, cfg, split, for_proj = False, for_sam = True):
+    def __init__(self, cfg, split, for_proj = False, for_sam = False):
         self.cfg = cfg
 
         #to know how to change the directory name based on the input images
@@ -172,7 +172,7 @@ class Scan3rDinov2Generator():
         output_path = osp.join(data_dir, "files/sam_data", scan_id, "frame-" + frame_number + ".npy")
         sam_data = np.load(output_path)
 
-        return sam_data
+        return sam_data 
         
 
      #this codesegment takes in a semantic segmentation of the projection with sam and translates it into the object ids
@@ -261,7 +261,7 @@ class Scan3rDinov2Generator():
 
                 for bbox in bboxes:
                     object_id = bbox["object_id"]
-
+                    
                     # Extract patch from the bounding box
                     min_col, min_row, width, height = bbox["bbox"]
                     x1, y1, x2, y2 = min_col, min_row, min_col + width, min_row + height
