@@ -13,6 +13,7 @@ ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
 print("ws_dir ", ws_dir)
 sys.path.append(ws_dir)
 from sam import sam_config
+from utils import scan3r
 import argparse
 from tqdm import tqdm
 
@@ -26,6 +27,7 @@ print(f"Using device: {DEVICE}")
 #initialization of needed variables
 MODEL_TYPE = sam_config.MODEL_TYPE
 CHECKPOINT_PATH = sam_config.CHECKPOINT_PATH
+include_rescan = sam_config.include_rescan
 
 
 
@@ -100,7 +102,7 @@ def get_all_sam_semantic_boxes_and_mask_scene(data_dir, scan_id):
 
     #search for all the colour files
     file_list = glob.glob(os.path.join(folder_path, file_pattern))
-    #print("file list", file_list)
+    #print("file list length ", len(file_list))
 
     #create a directory in which the boxes get saved
     output_path = osp.join(data_dir, "files/sam_data", scan_id)
@@ -118,7 +120,8 @@ def get_all_sam_semantic_boxes_and_mask_scene(data_dir, scan_id):
         #make a new file to save the information of the boundingboxes
         box_file_path = osp.join(output_path, filename)
         success_obj = np.save(box_file_path, frame_boxes)
-        return
+        
+    return
 
 
 
@@ -139,28 +142,62 @@ if __name__ == '__main__':
 
     #access the data
     data_dir = sam_config.data_dir
-    json_path = osp.join(data_dir,"files","3RScan.json")
+    # json_path = osp.join(data_dir,"files","3RScan.json")
     
-    scan_ids = []
-    #open the json file with all the scans
-    with open(json_path, 'r') as file:
-        data = json.load(file)
+    # scan_ids = []
+    # #open the json file with all the scans
+    # with open(json_path, 'r') as file:
+    #     data = json.load(file)
   
-    #get all the 
-    for scan_data in data:
-        if scan_data["type"]  == split:
-            #get the reference
-            scan_ids.append(scan_data["reference"])
-            #get all the rescans
-            for scan in scan_data['scans']:
-                scan_ids.append(scan['reference'] )
+    # #get all the 
+    # for scan_data in data:
+    #     if scan_data["type"]  == split:
+    #         #get the reference
+    #         scan_ids.append(scan_data["reference"])
+    #         #get all the rescans
+    #         for scan in scan_data['scans']:
+    #             scan_ids.append(scan['reference'] )
 
     #comput the boundingboxes for all the sequences of the reference scans
-    print("---Start: Computation of the boundingboxes for the input rgb-images using sam---")
-    for rescan_id in tqdm(scan_ids, desc='Computing bounding boxes'):
-        get_all_sam_semantic_boxes_and_mask_scene(data_dir, rescan_id)
 
-    print("---Finish: Computation of the boundingboxes for the input rgb-images using sam---")
+  
+    scan_info_file = osp.join(data_dir,"files", '3RScan.json')
+    #print("san infor file", scan_info_file)
+    with open(scan_info_file, 'r') as file:
+        all_scan_data = json.load(file)
+    
+    refscans2scans = {}
+    scans2refscans = {}
+    all_scans_split = []
+    for scan_data in all_scan_data:
+        ref_scan_id = scan_data['reference']
+        refscans2scans[ref_scan_id] = [ref_scan_id]
+        scans2refscans[ref_scan_id] = ref_scan_id
+        for scan in scan_data['scans']:
+            refscans2scans[ref_scan_id].append(scan['reference'])
+            scans2refscans[scan['reference']] = ref_scan_id
+    resplit = "resplit_" if sam_config.resplit else ""
+    ref_scans_split = np.genfromtxt(osp.join(data_dir,"files", '{}_{}scans.txt'.format(split,resplit)), dtype=str)
+    print("ref scan split", ref_scans_split)
+    all_scans_split = []
+    ## get all scans within the split(ref_scan + rescan)
+    for ref_scan in ref_scans_split:
+        all_scans_split += refscans2scans[ref_scan]
+    if include_rescan:
+        scan_ids = all_scans_split
+    else:
+        scan_ids = ref_scans_split
+
+    print("scan ids", len(scan_ids))
+    ## images info
+    image_paths = {}
+    for scan_id in scan_ids:
+        image_paths[scan_id] = scan3r.load_frame_paths(data_dir, scan_id)
+    print("---Start: Computation of the boundingboxes and masks for the input rgb-images using sam---")
+    for scan_id in tqdm(scan_ids, desc='Computing bounding boxes'):
+        get_all_sam_semantic_boxes_and_mask_scene(data_dir, scan_id)
+
+    print("---Finish: Computation of the boundingboxes and masks for the input rgb-images using sam---")
 
 
     

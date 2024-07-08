@@ -77,27 +77,56 @@ class Scan3rDinov2Generator():
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
         ## scans info
+        # self.rescan = cfg.data.rescan
+        # scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
+        # all_scan_data = common.load_json(scan_info_file)
+        # self.refscans2scans = {}
+        # self.scans2refscans = {}
+        # for scan_data in all_scan_data:
+        #     ref_scan_id = scan_data['reference']
+        #     self.refscans2scans[ref_scan_id] = [ref_scan_id]
+        #     self.scans2refscans[ref_scan_id] = ref_scan_id
+        #     if self.rescan:
+        #         for scan in scan_data['scans']:
+        #             self.refscans2scans[ref_scan_id].append(scan['reference'])
+        #             self.scans2refscans[scan['reference']] = ref_scan_id
+        # self.resplit = "resplit_" if cfg.data.resplit else ""
+        # if self.rescan:
+        #     ref_scans = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
+        #     self.scan_ids = []
+        #     for ref_scan in ref_scans:
+        #         self.scan_ids += self.refscans2scans[ref_scan]
+        # else:
+        #     self.scan_ids = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
+
+
+        """"""
         self.rescan = cfg.data.rescan
         scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
         all_scan_data = common.load_json(scan_info_file)
         self.refscans2scans = {}
         self.scans2refscans = {}
+        self.all_scans_split = []
         for scan_data in all_scan_data:
             ref_scan_id = scan_data['reference']
             self.refscans2scans[ref_scan_id] = [ref_scan_id]
             self.scans2refscans[ref_scan_id] = ref_scan_id
-            if self.rescan:
-                for scan in scan_data['scans']:
-                    self.refscans2scans[ref_scan_id].append(scan['reference'])
-                    self.scans2refscans[scan['reference']] = ref_scan_id
+            for scan in scan_data['scans']:
+                self.refscans2scans[ref_scan_id].append(scan['reference'])
+                self.scans2refscans[scan['reference']] = ref_scan_id
         self.resplit = "resplit_" if cfg.data.resplit else ""
+        ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
+        #print("ref scan split", ref_scans_split)
+        self.all_scans_split = []
+        ## get all scans within the split(ref_scan + rescan)
+        for ref_scan in ref_scans_split:
+            self.all_scans_split += self.refscans2scans[ref_scan]
         if self.rescan:
-            ref_scans = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-            self.scan_ids = []
-            for ref_scan in ref_scans:
-                self.scan_ids += self.refscans2scans[ref_scan]
+            self.scan_ids = self.all_scans_split
         else:
-            self.scan_ids = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
+            self.scan_ids = ref_scans_split
+
+        #print("scan ids", len(self.scan_ids))
         ## images info
         self.image_paths = {}
         for scan_id in self.scan_ids:
@@ -170,7 +199,7 @@ class Scan3rDinov2Generator():
     #accesses the bounding boxes of the objects computed by sam and saved in the same format as the ones for the projection will be calculated
     def bounging_boxes_for_sam(self, data_dir,scan_id, frame_number):
         output_path = osp.join(data_dir, "files/sam_data", scan_id, "frame-" + frame_number + ".npy")
-        sam_data = np.load(output_path)
+        sam_data = np.load(output_path, allow_pickle= True)
 
         return sam_data 
         
@@ -261,7 +290,7 @@ class Scan3rDinov2Generator():
 
                 for bbox in bboxes:
                     object_id = bbox["object_id"]
-                    
+
                     # Extract patch from the bounding box
                     min_col, min_row, width, height = bbox["bbox"]
                     x1, y1, x2, y2 = min_col, min_row, min_col + width, min_row + height
@@ -294,7 +323,8 @@ class Scan3rDinov2Generator():
     def generateFeatures(self):
         img_num = 0
         self.feature_generation_time = 0.0
-        for scan_id in tqdm(self.scan_ids[3:]):
+        #print("scanid in generate function", self.scan_ids)
+        for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 imgs_features = self.generateFeaturesEachScan(scan_id)
             img_num += len(imgs_features)
@@ -322,7 +352,11 @@ def main():
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
+    # scan3r_gcvit_generator.register_model()
+    # scan3r_gcvit_generator.generateFeatures()
+    #also generate for the sam boundingboxes
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_sam= True)
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')

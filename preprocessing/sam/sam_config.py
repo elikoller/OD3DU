@@ -13,3 +13,5 @@ patch_height= overall_configuration.patch_height
 patch_width= overall_configuration.patch_width #how big the patches are to cancle the noise of the projection
 data_dir = overall_configuration.data_dir 
 scenes_dir = overall_configuration.scenes_dir
+include_rescan = True
+resplit = True
