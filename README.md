@@ -181,13 +181,7 @@ bash scripts/features2D/scan3r_dinov2.sh
 This will create patch-level features for query images and save in "{Data_ROOT_DIR}/Features2D/DinoV2_16_9_scan".  
 
 
-### Image Crops of 3D Objects
-In order to speed up training, we pre-compute the features of multi-view and multi-level image crops of 3D objects, which are used for 3D scene graph embeddings of image modality.
-To generate the features, use : 
-```bash
-bash scripts/features3D/scan3r_sg_image.sh
-```
-This will create 10-view, 3-level features of image crops of 3D objects and save in "{Data_ROOT_DIR}/Features3D/obj_dinov2_top10_l3". 
+
 
 
 ## BibTeX :pray:

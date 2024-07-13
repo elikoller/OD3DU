@@ -73,10 +73,13 @@ def get_sam_boundingboxes_and_mask_frame(path_to_img):
     data_dict = generate_sam_data(path_to_img)
     #print("sam ressult", data_dict)
 
+    #since the segmentations are not ordered by size it can happen, that a bigger one is overlaying a smaller one
+    #sort from biggest to smallest
+    sorted_dict = sorted(data_dict, key=(lambda x: x['area']), reverse=True)
     bounding_boxes = []
      #iterate through evey segmentation field to get the result
     unique_obj_id = 0
-    for val in data_dict:
+    for val in sorted_dict:
         unique_obj_id = unique_obj_id + 1
         bbox = val['bbox']
         mask = val['segmentation']
