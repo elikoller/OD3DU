@@ -11,10 +11,19 @@ import cv2
 start of added by Elena
 """
 #added by elena
+#return the pkl file of the gt_annotation of a scan, data_dir is path to R3Scan
+def get_scan_gt_anno(data_dir, scan_id, patch_w, patch_h):
+    patch_w_str = str(patch_w)
+    patch_h_str = str(patch_h)
+    gt_anno_path = osp.join(data_dir, "files/patch_anno", "patch_anno_" + patch_w_str + "_" + patch_h_str, scan_id + ".pkl" )
+    with open(gt_anno_path, 'rb') as file:
+            data = pickle.load(file)
+
+    return data
 #return true if it is rescan // data_dir is the path to R3Scan
 def is_rescan(data_dir,scan_id):
 
-    is_rescan = True
+    is_rescan = Tr
     dir_path = osp.join(data_dir,"files","3RScan.json")
     with open(dir_path, 'r') as file:
         data = json.load(file)

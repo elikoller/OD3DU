@@ -53,12 +53,10 @@ from dataclasses import dataclass
 These features are only computed to see how close they are to the scenegraph features
 """
 class Scan3rDinov2Generator():
-    def __init__(self, cfg, split, for_proj = False, for_patch = False):
+    def __init__(self, cfg, split):
         self.cfg = cfg
 
-        #to know how to change the directory name based on the input images
-        self.proj = for_proj
-        self.patch = for_patch
+       
         # 3RScan data info
         ## sgaliner related cfg
         self.split = split
@@ -77,28 +75,6 @@ class Scan3rDinov2Generator():
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
         ## scans info
-        # self.rescan = cfg.data.rescan
-        # scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
-        # all_scan_data = common.load_json(scan_info_file)
-        # self.refscans2scans = {}
-        # self.scans2refscans = {}
-        # for scan_data in all_scan_data:
-        #     ref_scan_id = scan_data['reference']
-        #     self.refscans2scans[ref_scan_id] = [ref_scan_id]
-        #     self.scans2refscans[ref_scan_id] = ref_scan_id
-        #     if self.rescan:
-        #         for scan in scan_data['scans']:
-        #             self.refscans2scans[ref_scan_id].append(scan['reference'])
-        #             self.scans2refscans[scan['reference']] = ref_scan_id
-        # self.resplit = "resplit_" if cfg.data.resplit else ""
-        # if self.rescan:
-        #     ref_scans = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #     self.scan_ids = []
-        #     for ref_scan in ref_scans:
-        #         self.scan_ids += self.refscans2scans[ref_scan]
-        # else:
-        #     self.scan_ids = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-
 
         """"""
         self.rescan = cfg.data.rescan
@@ -162,13 +138,12 @@ class Scan3rDinov2Generator():
         self.step = self.cfg.data.img.img_step
         
         ## out dir 
-        if(self.proj):
-            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name)
+       
+        self.proj_out_dir = osp.join(self.scans_files_dir, 'Features2D/segmented_patch', self.model_name)
+        self.patch_out_dir = osp.join(self.scans_files_dir, 'Features2D/patch', self.model_name)
 
-        if(self.patch):
-            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/patch', self.model_name)
-
-        common.ensure_dir(self.out_dir)
+        common.ensure_dir(self.proj_out_dir)
+        common.ensure_dir(self.patch_out_dir)
         
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
@@ -201,12 +176,17 @@ class Scan3rDinov2Generator():
         
     def generateFeaturesEachScan(self, scan_id):
         # Initialize a dictionary to store features per frame and object ID
-        frame_features = {}
+        patch_features = {}
+        proj_patch_features = {}
 
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
         frame_idxs_list = list(img_paths.keys())
         frame_idxs_list.sort()
+
+        #access gt already 
+
+        gt_anno_all = scan3r.get_scan_gt_anno(self.data_root_dir, scan_id, self.image_patch_w, self.image_patch_h)
 
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
             start_idx = infer_step_i * self.inference_step
@@ -216,51 +196,85 @@ class Scan3rDinov2Generator():
             for frame_idx in frame_idxs_sublist:
                 img_path = img_paths[frame_idx]
                 img = Image.open(img_path).convert('RGB')
-                dat_dir = self.data_root_dir
+                
+                
+                patch_size_w = int(self.image_w/self.image_patch_w)
+                patch_size_h = int(self.image_h/self.image_patch_h)
 
-                # Load bounding boxes and patch IDs for the current frame
-                #path_proj_bboxes = osp.join(self.data_root_dir, "bboxes", scan_id, "gt_projection", f"frame-{frame_idx}.npy")
-                if self.proj:
-                    #get the 10 frames with the most visible 
-                    #get the projection boundingboxes
-                    bboxes = bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
-
-                if self.sam:
-                    #get the boundingboxes for the sam data
-                    bboxes = bounging_boxes_for_sam(dat_dir,scan_id, frame_idx)
 
                 # Initialize dictionary for embeddings per object ID in the current frame
-                frame_features[frame_idx] = {}
+                patch_features[frame_idx] = {}
+                proj_patch_features[frame_idx] = {}
 
-                for bbox in bboxes:
-                    object_id = bbox["object_id"]
+                patches_matrix = [[None for _ in range(self.image_patch_w)] for _ in range(self.image_patch_h)]
 
-                    # Extract patch from the bounding box
-                    min_col, min_row, width, height = bbox["bbox"]
-                    x1, y1, x2, y2 = min_col, min_row, min_col + width, min_row + height
-                    h_new, w_new = (self.image_resize_h // 14) * 14, (self.image_resize_w // 14) * 14
-                    patch_crop = img.crop((x1, y1, x2, y2))
-                    patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
+                # iterate over patches within one image
+                for patch_h_i in range(self.image_patch_h):
+                    h_start = round(patch_h_i * patch_size_h)
+                    h_end = round((patch_h_i+1) * patch_size_h)
+                    for patch_w_j in range(self.image_patch_w):
+                        w_start = round(patch_w_j * patch_size_w)
+                        w_end = round((patch_w_j+1) * patch_size_w)
+                       
+                        patch_crop = img.crop((h_start, w_start, h_end, w_end))
+                        #print("size of patch", patch_crop.size)
+                        #define the resizing
+                        h_new = int((self.image_resize_h // 14) * 14)
+                        w_new = int((self.image_resize_w // 14) * 14)
+                    
+                        #this is the current patch
+                        patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
 
-                    # Optionally rotate patch if needed
-                    if self.img_rotate:
-                        patch = patch.transpose(Image.ROTATE_270)
+    
+                        # Optionally rotate patch if needed
+                        if self.img_rotate:
+                            patch = patch.transpose(Image.ROTATE_270)
 
-                    # Convert patch to tensor and apply normalization
-                    patch_pt = self.base_tf(patch)
+                        # Convert patch to tensor and apply normalization
+                        patch_pt = self.base_tf(patch)
 
-                    # Prepare tensor for inference
-                    img_tensors_list = [patch_pt]
-                    imgs_tensor = torch.stack(img_tensors_list, dim=0).float().to(self.device)
+                        # Prepare tensor for inference
+                        img_tensors_list = [patch_pt]
+                        imgs_tensor = torch.stack(img_tensors_list, dim=0).float().to(self.device)
 
-                    # Perform inference to get the embedding for the patch
-                    with torch.no_grad():
-                        ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
+                        # Perform inference to get the embedding for the patch
+                        with torch.no_grad():
+                            ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
 
-                    # Store the embedding in the dictionary under the object ID
-                    frame_features[frame_idx][object_id] = ret[0].cpu().numpy()
+                        # store the matrix element into the matrix
+                        patches_matrix[patch_h_i][patch_w_j] = ret[0].cpu().numpy()
 
-        return frame_features
+                # the patch featrues are done at this step
+                patch_features[frame_idx] = patches_matrix
+
+                #grpoup the patches into different object ids
+                #access the gt_anno_2d for that frame_idx
+                gt_anno = gt_anno_all[frame_idx]
+                #check that the sizes indeed match else there might be an error when indexing
+                
+
+                #look which ids we have
+                unique_ids = np.unique(gt_anno)
+
+                #iterate through the ids
+                for obj_id in unique_ids:
+                    # find the indices where this id occurs in gt_anno
+                    indices = np.argwhere(gt_anno == obj_id)
+                    
+                    # list to store patches for this id
+                    patches_list = []
+                    
+                    # access the corresponding patches in patches_matrix
+                    for idx in indices:
+                        patch_h_i, patch_w_j = idx
+                        patch_feature = patches_matrix[patch_h_i][patch_w_j]
+                        patches_list.append(patch_feature)
+                    
+                    #write the list of features to the corresponding id
+                    proj_patch_features[frame_idx][obj_id] = patches_list
+
+        #patche featrues is each feature per patch, proj patch features is for each object the corresponding features
+        return patch_features, proj_patch_features
 
     
     
@@ -270,10 +284,14 @@ class Scan3rDinov2Generator():
         #print("scanid in generate function", self.scan_ids)
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
-                imgs_features = self.generateFeaturesEachScan(scan_id)
-            img_num += len(imgs_features)
-            out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
-            common.write_pkl_data(imgs_features, out_file)
+                patch_features, proj_features = self.generateFeaturesEachScan(scan_id)
+            img_num += len(patch_features)
+            #save the patchwise features
+            patch_out_file = osp.join(self.patch_out_dir, '{}.pkl'.format(scan_id))
+            common.write_pkl_data(patch_features, patch_out_file)
+            #save the projection features
+            proj_out_file = osp.join(self.proj_out_dir, '{}.pkl'.format(scan_id))
+            common.write_pkl_data(proj_features, proj_out_file)
         # log
         log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
             self.feature_generation_time, img_num, self.feature_generation_time / img_num)
@@ -300,7 +318,7 @@ def main():
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
     #also generate for the sam boundingboxes
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_sam= True)
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train')
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')
