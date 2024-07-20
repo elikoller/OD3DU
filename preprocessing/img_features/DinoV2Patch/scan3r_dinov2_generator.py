@@ -194,6 +194,7 @@ class Scan3rDinov2Generator():
             frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
 
             for frame_idx in frame_idxs_sublist:
+
                 img_path = img_paths[frame_idx]
                 img = Image.open(img_path).convert('RGB')
                 
@@ -246,7 +247,7 @@ class Scan3rDinov2Generator():
 
                 # the patch featrues are done at this step
                 patch_features[frame_idx] = patches_matrix
-
+                #print("patch features are done", frame_idx, " scene ", scan_id)
                 #grpoup the patches into different object ids
                 #access the gt_anno_2d for that frame_idx
                 gt_anno = gt_anno_all[frame_idx]
@@ -268,13 +269,20 @@ class Scan3rDinov2Generator():
                     for idx in indices:
                         patch_h_i, patch_w_j = idx
                         patch_feature = patches_matrix[patch_h_i][patch_w_j]
+                        #print("feature shape", patch_feature.shape)
                         patches_list.append(patch_feature)
                     
-                    #write the list of features to the corresponding id
-                    proj_patch_features[frame_idx][obj_id] = patches_list
+                    #get the mean of all the features
+                    patches_array = np.array(patches_list)
+                    #print("patches array shape", patches_array.shape)
+                    mean_patches = np.mean(patches_array, axis=0) 
+                    #print("mean patches array shape", mean_patches.shape) 
 
-        #patche featrues is each feature per patch, proj patch features is for each object the corresponding features
-        return patch_features, proj_patch_features
+                    proj_patch_features[frame_idx][obj_id] = mean_patches
+
+            #patche featrues is each feature per patch, proj patch features is for each object the corresponding features
+            #print("everything is done for scan", scan_id)
+            return patch_features, proj_patch_features
 
     
     
@@ -287,6 +295,7 @@ class Scan3rDinov2Generator():
                 patch_features, proj_features = self.generateFeaturesEachScan(scan_id)
             img_num += len(patch_features)
             #save the patchwise features
+            print("will save patches", scan_id)
             patch_out_file = osp.join(self.patch_out_dir, '{}.pkl'.format(scan_id))
             common.write_pkl_data(patch_features, patch_out_file)
             #save the projection features
