@@ -193,7 +193,7 @@ class Scan3rDinov2Generator():
             end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
             frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
 
-            for frame_idx in frame_idxs_sublist:
+            for frame_idx in frame_idxs_sublist[6:9]:
 
                 img_path = img_paths[frame_idx]
                 img = Image.open(img_path).convert('RGB')
@@ -247,7 +247,7 @@ class Scan3rDinov2Generator():
 
                 # the patch featrues are done at this step
                 patch_features[frame_idx] = patches_matrix
-                #print("patch features are done", frame_idx, " scene ", scan_id)
+                print("patch features are done", frame_idx, " scene ", scan_id)
                 #grpoup the patches into different object ids
                 #access the gt_anno_2d for that frame_idx
                 gt_anno = gt_anno_all[frame_idx]
@@ -281,7 +281,7 @@ class Scan3rDinov2Generator():
                     proj_patch_features[frame_idx][obj_id] = mean_patches
 
             #patche featrues is each feature per patch, proj patch features is for each object the corresponding features
-            #print("everything is done for scan", scan_id)
+            print("everything is done for scan", scan_id)
             return patch_features, proj_patch_features
 
     
