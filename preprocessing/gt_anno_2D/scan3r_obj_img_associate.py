@@ -19,15 +19,17 @@ from utils import common, scan3r
 
 #I don't think I actually need this also adjust the script
 class Scan3ROBJAssociator():
-    def __init__(self, data_root_dir, split, cfg):
+    def __init__(self, data_root_dir, split, cfg, resplit_files = False):
         self.cfg = cfg
         self.split = split
+        self.resplit = resplit_files
         self.use_rescan = self.cfg.data.rescan
         self.data_root_dir = data_root_dir
         
         scan_dirname = ''
         self.scans_dir = osp.join(data_root_dir, scan_dirname)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
+        self.scans_files_dir = osp.join(self.scans_dir, 'files')
         
         self.scenes_config_file = osp.join(self.scans_dir, 'files', '3RScan.json')
         self.scenes_configs = common.load_json(self.scenes_config_file)
@@ -38,12 +40,37 @@ class Scan3ROBJAssociator():
         self.step = self.cfg.data.img.img_step
         
         # get scans
-        for scan_data in self.scenes_configs:
-            if scan_data['type'] == self.split:
-                self.scan_ids.append(scan_data['reference'])
-                if self.use_rescan:
-                    rescan_ids = [scan['reference'] for scan in scan_data['scans']]
-                    self.scan_ids += rescan_ids
+    #    for scan_data in self.scenes_configs:
+    #         if scan_data['type'] == self.split:
+    #             self.scan_ids.append(scan_data['reference'])
+    #             if self.use_rescan:
+    #                 rescan_ids = [scan['reference'] for scan in scan_data['scans']]
+    #                 self.scan_ids += rescan_ids 
+
+        self.rescan = True
+        scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
+        all_scan_data = common.load_json(scan_info_file)
+        self.refscans2scans = {}
+        self.scans2refscans = {}
+        self.all_scans_split = []
+        for scan_data in all_scan_data:
+            ref_scan_id = scan_data['reference']
+            self.refscans2scans[ref_scan_id] = [ref_scan_id]
+            self.scans2refscans[ref_scan_id] = ref_scan_id
+            for scan in scan_data['scans']:
+                self.refscans2scans[ref_scan_id].append(scan['reference'])
+                self.scans2refscans[scan['reference']] = ref_scan_id
+        self.resplit = "resplit_" if self.resplit else ""
+        ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
+        #print("ref scan split", ref_scans_split)
+        self.all_scans_split = []
+        ## get all scans within the split(ref_scan + rescan)
+        for ref_scan in ref_scans_split:
+            self.all_scans_split += self.refscans2scans[ref_scan]
+        if self.rescan:
+            self.scan_ids = self.all_scans_split
+        else:
+            self.scan_ids = ref_scans_split
                     
         self.scan_ids.sort()
         
@@ -122,9 +149,9 @@ if __name__ == '__main__':
     Data_ROOT_DIR = os.getenv("Scan3R_ROOT_DIR")
     # note that the original validation set includes the resplited val and test set
     cfg = update_config(config, cfg_file, ensure_dir = False)
-    split = "validation"
-    scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg)
-    scan3r_img_projector.annotate_scans()
+    # split = "validation"
+    # scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg)
+    # scan3r_img_projector.annotate_scans()
     split = "train"
-    scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg)
+    scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg, resplit_files= True)
     scan3r_img_projector.annotate_scans()
