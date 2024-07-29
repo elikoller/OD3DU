@@ -171,6 +171,11 @@ the bigger goal is to generate dinov features for different objects in the input
 bash scripts/sam_data/sam_segmentations.sh
 ```
 
+### generating a semantic segmentation for the input images
+```bash
+bash scripts/dino_segmentation/semantic_segmentation_dino.sh
+```
+
 ### Patch-Level Features Pre-compute
 In order to speed up training, we pre-compute the patch-level features with 
       [Dino v2](https://dinov2.metademolab.com/). 

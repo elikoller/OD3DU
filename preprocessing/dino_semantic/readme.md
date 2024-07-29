@@ -1,0 +1,1 @@
+use the dino_seg thing: important 1. download dinov2 manually, then overwrite the functions which are given because some dependencies arise
