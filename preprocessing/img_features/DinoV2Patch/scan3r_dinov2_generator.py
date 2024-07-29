@@ -329,7 +329,7 @@ def main():
     #also generate for the sam boundingboxes
     scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train')
     scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
+    scan3r_gcvit_generator.generateFeatures() #genertes patchfeatures 
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
