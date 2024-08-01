@@ -53,12 +53,12 @@ from dataclasses import dataclass
 These features are only computed to see how close they are to the scenegraph features
 """
 class Scan3rDinov2Generator():
-    def __init__(self, cfg, split, for_proj = False, for_sam = False):
+    def __init__(self, cfg, split, for_proj = False, for_dino_seg = False):
         self.cfg = cfg
 
         #to know how to change the directory name based on the input images
         self.proj = for_proj
-        self.sam = for_sam
+        self.dino = for_dino_seg
         # 3RScan data info
         ## sgaliner related cfg
         self.split = split
@@ -163,10 +163,10 @@ class Scan3rDinov2Generator():
         
         ## out dir 
         if(self.proj):
-            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name)
+            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
 
-        if(self.sam):
-            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/sam', self.model_name)
+        if(self.dino):
+            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/dino_segmentation', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
 
         common.ensure_dir(self.out_dir)
         
@@ -196,15 +196,73 @@ class Scan3rDinov2Generator():
         feature = self.model.backbone(imgs_tensor)[-1]
         return feature
     
-    #accesses the bounding boxes of the objects computed by sam and saved in the same format as the ones for the projection will be calculated
-    def bounging_boxes_for_sam(self, data_dir,scan_id, frame_number):
-        output_path = osp.join(data_dir, "files/sam_data", scan_id, "frame-" + frame_number + ".npy")
-        sam_data = np.load(output_path, allow_pickle= True)
 
-        return sam_data 
+
+    #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
+    def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
+        #access the saved segmentation from dinov2
+        frame_path = osp.join(data_dir,"files/Segmentation/Dinov2",  scan_id, "frame-{}.jpg".format(frame_number))
+                            #different approach 
         
+        segmented_img = cv2.imread(frame_path)
+        #print("shape of segmetned", segmented_img.shape)
 
-     #this codesegment takes in a semantic segmentation of the projection with sam and translates it into the object ids
+        img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
+
+        # Initialize the new image
+        patch_annos = np.zeros_like(segmented_img)
+
+        # Calculate patch dimensions
+        patch_width = img_width // self.image_patch_w
+        patch_height = img_height // self.image_patch_h
+
+        # Process each patch
+        for h in range(0, img_height, patch_height):
+            for w in range(0, img_width, patch_width):
+                # Extract the patch
+                patch = segmented_img[h:h+patch_height, w:w+patch_width]
+
+                # Reshape patch to a list of colors
+                reshaped_patch = patch.reshape(-1, 3)
+
+                # Find the most common color
+                reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
+                value_counts = Counter(reshaped_patch_tuple)
+                most_common_value = value_counts.most_common(1)[0][0]
+
+                # Fill the patch with the most common color
+                patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
+
+
+        #look how many colours there are in the img
+        unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
+        
+        #create the dictionary we will retun later analogously to the projection boundingboxes
+        #compute the boundingboxes based on that new obj_id_mask
+        bounding_boxes = []
+        segment_id = 0
+    
+        #go throught each colour and get the compoentnts
+        for color in unique_colors:
+            # get the mask per colour
+            mask = cv2.inRange(patch_annos, color, color)
+            # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+            #visualize the rectangles
+            for i in range(1, num_labels):  # Start from 1 to skip the background
+                #assign the component a new id
+                segment_id += 1
+                min_col, min_row, width, height, _ = stats[i]
+                # Store bounding box information
+                bounding_boxes.append({
+                    'object_id': segment_id,
+                    'bbox': [min_col, min_row, width, height]
+                })
+
+        return bounding_boxes
+
+
+    #using the ground truth projection, create boundingboxes for each object :)
     def bounding_boxes_for_projection(self,data_dir, scan_id, frame_number):
         #access the projection
 
@@ -281,9 +339,9 @@ class Scan3rDinov2Generator():
                     #get the projection boundingboxes
                     bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
 
-                if self.sam:
-                    #get the boundingboxes for the sam data
-                    bboxes = self.bounging_boxes_for_sam(dat_dir,scan_id, frame_idx)
+                if self.dino:
+                    #get the boundingboxes for the seggmentation with dino data
+                    bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
 
                 # Initialize dictionary for embeddings per object ID in the current frame
                 frame_features[frame_idx] = {}
@@ -355,8 +413,8 @@ def main():
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
-    #also generate for the sam boundingboxes
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_sam= True)
+    #also generate for the dino_:segmentation boundingboxes
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val')

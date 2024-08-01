@@ -10,5 +10,5 @@ cd $VLSG_SPACE
 
 # generate patch-level features with Dinov2
 python ./preprocessing/img_features/DinoV2/scan3r_dinov2_generator.py \
-    --config ./preprocessing/img_features/DinoV2Patch/scan3r_dinov2_generator.yaml
+    --config ./preprocessing/img_features/DinoV2/scan3r_dinov2_generator.yaml
 

@@ -139,7 +139,7 @@ To generate ground truth annotation, use :
 bash scripts/gt_annotations/scan3r_gt_annotations.sh
 ```
 This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno only for the eval and train set tho
-this also directly computes the boundingboxes for the objects in the projections for every scan
+the current number of the patches is 32x18 but this can be changed, look if there is also th, just take max instead of th == 0.2
 
 while it migh be confusing the ground truth for the reference is actually the data we already have provided: our assumption is that we have the mesh -> so there for the reference scans we will actually compute with them. for the rescans however this is the actual ground truth which we will also use for comparison later on
 
@@ -147,43 +147,26 @@ while it migh be confusing the ground truth for the reference is actually the da
 
 
 ### Elena's Code
-In the preprocessing added the calculation of the boundingboxes. For this there is also a file in the preprocessing calles boundingboxVisuals. In this notebook everything about the boundingbox generation can be found and also some visualizations. The modifications added to the preprocess_scan3r.py file are clearly marked as modified by me in case of need for change.
+the first approach involved bounduingboxes  intersection for speedup but this was slow & not good enough but it helped a lot to visualize the whole dataset + understand it better
 
-open questions: why tf are there differend amounts of ids saved when accessind the data differently -> texted yang wait for answer
 
-Rayshooting: in the subsection of preprocessing/ray_shooting_pixel_wise_ray_shooting there is a notebook which shows the calculation steps for the calculation of the rays. it dived into the ray generation, and intersection with the boundingboxes, returning not only the intersection point but also the id of the boundingbox which got intersected. Alto the visualizations of the rays are open
-
-open to dos: 
-- to correct the intersection stuff start with reference scan -> the boundingboxes should hit
-- visualize the mesh: there I had to change the rgb to bgr or something wtf? What was it before??? What does this mean for the rest :((((((
-- also plot the boundingboxes in three- looks weird form angle but align
-
-- also plot the rays in there -> now we got the porblem:: wtf look again at matricies or maybe some issue with meter conversion but else same structure as Yangs intersection so wtf
-
-- very slow -> intersection with the boundingboxes can use some speedup work on that
-- when the comparison with the gt is not the same: show the transformation in a semantic way: what became what
-plot the depht map to see the dimensions ( not highest prio atm but do it)
-- check if the Id are correctly taken!: should be correctly taken. according to FAQ id in object.jason is the same as objdctId or Id in semseg.json
-
-### Generating Boundingboxes for the input rgb using 
-the bigger goal is to generate dinov features for different objects in the input images and matching them to the objects in the scene for this we use sam segment anything to compute boundinboxes for the objects. the boundingboxes get extracted and saved into "{Data_ROOT_DIR}/files/sam_data
-```bash
-bash scripts/sam_data/sam_segmentations.sh
-```
 
 ### generating a semantic segmentation for the input images
+the bigger goal is to generate dinov features for different objects in the input images and matching them to the objects in the scene. We dont want to train a network but use already pretrained ones. We also tried to divide inpout and gt into same size patches and compare these however the result was not good. Hence we look into a segmentation of the input image to get a better result. We use dinov2 transform2mask, a pretrained model on akd20 something, the segmentation masks are stored here "{Data_ROOT_DIR}/files/Features2D/dino_segmentation. 
 ```bash
 bash scripts/dino_segmentation/semantic_segmentation_dino.sh
 ```
 
-### Patch-Level Features Pre-compute
-In order to speed up training, we pre-compute the patch-level features with 
+
+
+### Feature generation
+To compare the inhalt of the input images to the current situation we need some features. in order to do that we do the following:  for the gt projection we go into the projection and for each individual object we compute bounding boxes based on the quantization into the 32x18 patches. For the input images we take the generated dinov2 mask and also quantize it into 32x18 patches in order to eliminate noise in the segmentation. then we compute based on the same pretrained network the features for each object/ segment by resizing it into 224x224 big patches.
       [Dino v2](https://dinov2.metademolab.com/). 
 To generate the features, use : 
 ```bash
 bash scripts/features2D/scan3r_dinov2.sh
 ```
-This will create patch-level features for query images and save in "{Data_ROOT_DIR}/Features2D/DinoV2_16_9_scan".  
+This will create patch-level features for query images and save in "{Data_ROOT_DIR}/Features2D/dino_segmentation/Dinov2/patch_32_18_scan". for the projection and at "{Data_ROOT_DIR}/Features2D/projection/Dinov2/patch_32_18_scan"
 
 
 

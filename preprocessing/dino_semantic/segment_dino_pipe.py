@@ -109,7 +109,7 @@ class DinoSegmentor():
         
         
         #outputpath
-        self.out_dir = osp.join(self.scans_files_dir, 'Segmentation/Dinov2')
+        self.out_dir = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/color')
 
         common.ensure_dir(self.out_dir)
         
@@ -237,6 +237,8 @@ class DinoSegmentor():
                 #print("--- image gets rendered ----")
                 segmented_image = self.render_segmentation(segmentation_logits, "ade20k")
                 segmented_image_np = np.array(segmented_image)
+                #rotate the image such that the dimensions align with the other dimensions
+                segmented_image_np = cv2.rotate(segmented_image_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 #to do assert the folder
                 #cv2.imwrite("/local/home/ekoller/tmp_result/segmentedimg_r3_rotated.jpg", segmented_image_np)
                 #print("--- image got saved ---")
@@ -246,15 +248,16 @@ class DinoSegmentor():
                 file_path = osp.join(scan_result_path,img_name)
                 cv2.imwrite(file_path,segmented_image_np)
 
+                #also create a 
 
-    #iterate over the scans
+
+    #iterate over the scans and do the segmentation
     def segmentation(self):
         model = self.load_pretrained_model()
         #iterate over each scan which where selected in the initialization
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 self.segment_each_scan(model,scan_id)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
