@@ -70,6 +70,12 @@ class DinoSegmentor():
         self.scans_files_dir_mode = osp.join(self.scans_files_dir)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
+
+
+        #patch info 
+        self.image_patch_w = self.cfg.data.img_encoding.patch_w
+        self.image_patch_h = self.cfg.data.img_encoding.patch_h
+      
        
         #scans info 
         self.rescan = cfg.data.rescan
@@ -108,10 +114,14 @@ class DinoSegmentor():
         self.step = self.cfg.data.img.img_step
         
         
-        #outputpath
-        self.out_dir = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/color')
+        #outputpath for total images
+        self.out_dir_color = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/color')
+        #output path for components
+        self.out_dir_objects = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/objects')
 
-        common.ensure_dir(self.out_dir)
+
+        common.ensure_dir(self.out_dir_color)
+        common.ensure_dir(self.out_dir_objects)
         
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
 
@@ -194,14 +204,20 @@ class DinoSegmentor():
         
 
     
-    #for a scan do the inference for every frame
+    #for a scan do the inference for every frame // saves the entire image and a dictionary with the patches, ids, and boundingboxes
     def segment_each_scan(self, model, scan_id):
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
         frame_idxs_list = list(img_paths.keys())
         frame_idxs_list.sort()
-        scan_result_path = osp.join(self.out_dir,scan_id)
-        common.ensure_dir(scan_result_path)
+        scan_result_path_color = osp.join(self.out_dir_color,scan_id)
+
+        #initialize a dict for the objects
+        info = {}
+        scan_result_path_objects =  osp.join(self.out_dir_objects,scan_id)
+
+        common.ensure_dir(scan_result_path_color)
+        common.ensure_dir(scan_result_path_objects)
 
         #o over each frame index for the scan id
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
@@ -235,20 +251,96 @@ class DinoSegmentor():
                     segmentation_logits = inference_segmentor(model, array)[0]
 
                 #print("--- image gets rendered ----")
-                segmented_image = self.render_segmentation(segmentation_logits, "ade20k")
-                segmented_image_np = np.array(segmented_image)
+                segmented_img = self.render_segmentation(segmentation_logits, "ade20k")
+                segmented_img = np.array(segmented_img)
                 #rotate the image such that the dimensions align with the other dimensions
-                segmented_image_np = cv2.rotate(segmented_image_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                segmented_img = cv2.rotate(segmented_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 #to do assert the folder
                 #cv2.imwrite("/local/home/ekoller/tmp_result/segmentedimg_r3_rotated.jpg", segmented_image_np)
                 #print("--- image got saved ---")
                 
-                #safe the image
+                #safe the image as a colourful mask 
                 img_name = "frame-"+str(frame_idx)+".jpg"
-                file_path = osp.join(scan_result_path,img_name)
-                cv2.imwrite(file_path,segmented_image_np)
+                file_path = osp.join(scan_result_path_color,img_name)
+                cv2.imwrite(file_path,segmented_img)
 
-                #also create a 
+                #also create a dictionary for the  by creating a object_based view 
+                 #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
+    
+                """
+                create objects based on components and save the infor in a dict
+                """
+
+                img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
+
+                # init the quantized image ofd dimenstion patch_wxpatch_h
+                patch_annos = np.zeros((self.image_patch_h, self.image_patch_w, 3), dtype=np.uint8)
+
+                # get the size of the patches
+                patch_width = img_width // self.image_patch_w
+                patch_height = img_height // self.image_patch_h
+
+                # iterate through each patch
+                for h in range(0, img_height, patch_height):
+                    for w in range(0, img_width, patch_width):
+                        # Extract the patch
+                        patch = segmented_img[h:h+patch_height, w:w+patch_width]
+
+                        # Reshape patch to a list of colors
+                        reshaped_patch = patch.reshape(-1, 3)
+
+                        # Find the most common color
+                        reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
+                        value_counts = Counter(reshaped_patch_tuple)
+                        most_common_value = value_counts.most_common(1)[0][0]
+
+                        #get the index for patch annos
+                        patch_h_idx = h // patch_height
+                        patch_w_idx = w // patch_width
+                        # Fill the patch with the most common color
+                        patch_annos[patch_h_idx, patch_w_idx] = most_common_value
+
+               
+                #look how many colours there are in the originally sized segmetned image
+                unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
+                
+                #create the dictionary we will retun later analogously to the projection boundingboxes
+                #compute the boundingboxes based on that new obj_id_mask
+                bounding_boxes = []
+                segment_id = 0
+            
+                #go throught each colour and get the compoentnts
+                for color in unique_colors:
+                    # get the mask per colour
+                    mask = cv2.inRange(patch_annos, color, color)
+                    # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
+                    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+                    #visualize the rectangles
+                    for i in range(1, num_labels):  # Start from 1 to skip the background
+                        #assign the component a new id
+                        segment_id += 1
+                        min_col, min_row, width, height, _ = stats[i]
+                        #get the mask of the componenet
+                        component_mask = (labels == i).astype(np.uint8) *225
+
+                        # Store bounding box information
+                        bounding_boxes.append({
+                            'object_id': segment_id,
+                            'bbox': [min_col*self.image_patch_w, min_row*self.image_patch_h, width*self.image_patch_w, height*self.image_patch_h],
+                            'mask': component_mask
+                            })
+
+               
+            
+                #save everything in a dictionary
+                info[frame_idx]= bounding_boxes
+            
+        #save the info 
+        # save file
+        objects_file = osp.join(self.out_dir_objects, scan_id+".pkl")
+        common.write_pkl_data(info, objects_file)
+
+
 
 
     #iterate over the scans and do the segmentation

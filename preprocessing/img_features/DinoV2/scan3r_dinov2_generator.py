@@ -2,6 +2,7 @@
 from collections import Counter
 import os
 import os.path as osp
+import pickle
 import sys
 from tracemalloc import start
 import cv2
@@ -200,66 +201,75 @@ class Scan3rDinov2Generator():
 
     #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
-        #access the saved segmentation from dinov2
-        frame_path = osp.join(data_dir,"files/Segmentation/Dinov2",  scan_id, "frame-{}.jpg".format(frame_number))
-                            #different approach 
+        #access the precomputed boundingboxes
+        # Load data from the pickle file
+        file_path = osp.join(data_dir,"files/Segmentation/Dinov2/objects","{}.pkl".format(scan_id))
+        with open(file_path, 'rb') as file:
+            object_info = pickle.load(file)
+
+        object_boxes = object_info[scan_id]["object_boxes"]
+        return object_boxes
+
+        # #access the saved segmentation from dinov2
+        # frame_path = osp.join(data_dir,"files/Segmentation/Dinov2",  scan_id, "frame-{}.jpg".format(frame_number))
+        #                     #different approach 
         
-        segmented_img = cv2.imread(frame_path)
-        #print("shape of segmetned", segmented_img.shape)
+        # segmented_img = cv2.imread(frame_path)
+        # #print("shape of segmetned", segmented_img.shape)
 
-        img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
+        # img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
 
-        # Initialize the new image
-        patch_annos = np.zeros_like(segmented_img)
+        # # Initialize the new image
+        # patch_annos = np.zeros_like(segmented_img)
 
-        # Calculate patch dimensions
-        patch_width = img_width // self.image_patch_w
-        patch_height = img_height // self.image_patch_h
+        # # Calculate patch dimensions
+        # patch_width = img_width // self.image_patch_w
+        # patch_height = img_height // self.image_patch_h
 
-        # Process each patch
-        for h in range(0, img_height, patch_height):
-            for w in range(0, img_width, patch_width):
-                # Extract the patch
-                patch = segmented_img[h:h+patch_height, w:w+patch_width]
+        # # Process each patch
+        # for h in range(0, img_height, patch_height):
+        #     for w in range(0, img_width, patch_width):
+        #         # Extract the patch
+        #         patch = segmented_img[h:h+patch_height, w:w+patch_width]
 
-                # Reshape patch to a list of colors
-                reshaped_patch = patch.reshape(-1, 3)
+        #         # Reshape patch to a list of colors
+        #         reshaped_patch = patch.reshape(-1, 3)
 
-                # Find the most common color
-                reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
-                value_counts = Counter(reshaped_patch_tuple)
-                most_common_value = value_counts.most_common(1)[0][0]
+        #         # Find the most common color
+        #         reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
+        #         value_counts = Counter(reshaped_patch_tuple)
+        #         most_common_value = value_counts.most_common(1)[0][0]
 
-                # Fill the patch with the most common color
-                patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
+        #         # Fill the patch with the most common color
+        #         patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
 
 
-        #look how many colours there are in the img
-        unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
+        # #look how many colours there are in the img
+        # unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
         
-        #create the dictionary we will retun later analogously to the projection boundingboxes
-        #compute the boundingboxes based on that new obj_id_mask
-        bounding_boxes = []
-        segment_id = 0
+        # #create the dictionary we will retun later analogously to the projection boundingboxes
+        # #compute the boundingboxes based on that new obj_id_mask
+        # bounding_boxes = []
+        # segment_id = 0
     
-        #go throught each colour and get the compoentnts
-        for color in unique_colors:
-            # get the mask per colour
-            mask = cv2.inRange(patch_annos, color, color)
-            # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
-            #visualize the rectangles
-            for i in range(1, num_labels):  # Start from 1 to skip the background
-                #assign the component a new id
-                segment_id += 1
-                min_col, min_row, width, height, _ = stats[i]
-                # Store bounding box information
-                bounding_boxes.append({
-                    'object_id': segment_id,
-                    'bbox': [min_col, min_row, width, height]
-                })
+        # #go throught each colour and get the compoentnts
+        # for color in unique_colors:
+        #     # get the mask per colour
+        #     mask = cv2.inRange(patch_annos, color, color)
+        #     # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
+        #     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        #     #visualize the rectangles
+        #     for i in range(1, num_labels):  # Start from 1 to skip the background
+        #         #assign the component a new id
+        #         segment_id += 1
+        #         min_col, min_row, width, height, _ = stats[i]
+        #         # Store bounding box information
+        #         bounding_boxes.append({
+        #             'object_id': segment_id,
+        #             'bbox': [min_col, min_row, width, height]
+        #         })
 
-        return bounding_boxes
+        # return bounding_boxes
 
 
     #using the ground truth projection, create boundingboxes for each object :)
@@ -351,7 +361,7 @@ class Scan3rDinov2Generator():
 
                     # Extract patch from the bounding box
                     min_col, min_row, width, height = bbox["bbox"]
-                    x1, y1, x2, y2 = min_col, min_row, min_col + width, min_row + height
+                    x1, y1, x2, y2 = int(min_col), int(min_row),int( min_col + width),int( min_row + height)
                     h_new, w_new = (self.image_resize_h // 14) * 14, (self.image_resize_w // 14) * 14
                     patch_crop = img.crop((x1, y1, x2, y2))
                     patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
