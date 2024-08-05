@@ -23,7 +23,7 @@ def get_scan_gt_anno(data_dir, scan_id, patch_w, patch_h):
 #return true if it is rescan // data_dir is the path to R3Scan
 def is_rescan(data_dir,scan_id):
 
-    is_rescan = Tr
+    is_rescan = True
     dir_path = osp.join(data_dir,"files","3RScan.json")
     with open(dir_path, 'r') as file:
         data = json.load(file)

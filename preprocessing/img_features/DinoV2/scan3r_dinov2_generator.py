@@ -207,7 +207,7 @@ class Scan3rDinov2Generator():
         with open(file_path, 'rb') as file:
             object_info = pickle.load(file)
 
-        object_boxes = object_info[scan_id]["object_boxes"]
+        object_boxes = object_info[frame_number]
         return object_boxes
 
         # #access the saved segmentation from dinov2

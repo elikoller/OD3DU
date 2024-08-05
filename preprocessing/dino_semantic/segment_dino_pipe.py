@@ -115,9 +115,9 @@ class DinoSegmentor():
         
         
         #outputpath for total images
-        self.out_dir_color = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/color')
+        self.out_dir_color = osp.join(self.scans_files_dir, 'Segmentation/DinoV2/color')
         #output path for components
-        self.out_dir_objects = osp.join(self.scans_files_dir, 'Segmentation/Dinov2/objects')
+        self.out_dir_objects = osp.join(self.scans_files_dir, 'Segmentation/DinoV2/objects')
 
 
         common.ensure_dir(self.out_dir_color)
@@ -214,10 +214,10 @@ class DinoSegmentor():
 
         #initialize a dict for the objects
         info = {}
-        scan_result_path_objects =  osp.join(self.out_dir_objects,scan_id)
+        
 
         common.ensure_dir(scan_result_path_color)
-        common.ensure_dir(scan_result_path_objects)
+        
 
         #o over each frame index for the scan id
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
@@ -270,17 +270,18 @@ class DinoSegmentor():
                 """
                 create objects based on components and save the infor in a dict
                 """
+                
+                #from the just computed segmentation get the shape
+                img_height, img_width, _ = segmented_img.shape  
 
-                img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
+                # Initialize the new image
+                patch_annos = np.zeros_like(segmented_img)
 
-                # init the quantized image ofd dimenstion patch_wxpatch_h
-                patch_annos = np.zeros((self.image_patch_h, self.image_patch_w, 3), dtype=np.uint8)
-
-                # get the size of the patches
+                # Calculate patch dimensions
                 patch_width = img_width // self.image_patch_w
                 patch_height = img_height // self.image_patch_h
 
-                # iterate through each patch
+                # Process each patch
                 for h in range(0, img_height, patch_height):
                     for w in range(0, img_width, patch_width):
                         # Extract the patch
@@ -294,46 +295,107 @@ class DinoSegmentor():
                         value_counts = Counter(reshaped_patch_tuple)
                         most_common_value = value_counts.most_common(1)[0][0]
 
-                        #get the index for patch annos
-                        patch_h_idx = h // patch_height
-                        patch_w_idx = w // patch_width
                         # Fill the patch with the most common color
-                        patch_annos[patch_h_idx, patch_w_idx] = most_common_value
+                        patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
+                        
 
-               
-                #look how many colours there are in the originally sized segmetned image
-                unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
-                
-                #create the dictionary we will retun later analogously to the projection boundingboxes
+                 #create the dictionary we will retun later analogously to the projection boundingboxes
                 #compute the boundingboxes based on that new obj_id_mask
                 bounding_boxes = []
                 segment_id = 0
-            
-                #go throught each colour and get the compoentnts
+
+
+                #look how many colours there are in the img
+                unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
                 for color in unique_colors:
                     # get the mask per colour
                     mask = cv2.inRange(patch_annos, color, color)
                     # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
                     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+                                    
                     #visualize the rectangles
                     for i in range(1, num_labels):  # Start from 1 to skip the background
                         #assign the component a new id
                         segment_id += 1
-                        min_col, min_row, width, height, _ = stats[i]
-                        #get the mask of the componenet
-                        component_mask = (labels == i).astype(np.uint8) *225
-
-                        # Store bounding box information
+                        min_col, min_row, width, height, _  = stats[i]
+                    
+                        # Extract the mask for the current component
+                        component_mask = (labels == i).astype(np.uint8)
+                        #Store bounding box information
                         bounding_boxes.append({
                             'object_id': segment_id,
-                            'bbox': [min_col*self.image_patch_w, min_row*self.image_patch_h, width*self.image_patch_w, height*self.image_patch_h],
+                            'bbox': [min_col, min_row, width, height],
                             'mask': component_mask
                             })
+                        
+
+
+                info[frame_idx]= bounding_boxes
+
+                # img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
+
+                # # init the quantized image ofd dimenstion patch_wxpatch_h
+                # patch_annos = np.zeros((self.image_patch_h, self.image_patch_w, 3), dtype=np.uint8)
+
+                # # get the size of the patches
+                # patch_width = img_width // self.image_patch_w
+                # patch_height = img_height // self.image_patch_h
+
+                # # iterate through each patch
+                # for h in range(0, img_height, patch_height):
+                #     for w in range(0, img_width, patch_width):
+                #         # Extract the patch
+                #         patch = segmented_img[h:h+patch_height, w:w+patch_width]
+
+                #         # Reshape patch to a list of colors
+                #         reshaped_patch = patch.reshape(-1, 3)
+
+                #         # Find the most common color
+                #         reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
+                #         value_counts = Counter(reshaped_patch_tuple)
+                #         most_common_value = value_counts.most_common(1)[0][0]
+
+                #         #get the index for patch annos
+                #         patch_h_idx = h // patch_height
+                #         patch_w_idx = w // patch_width
+                #         # Fill the patch with the most common color
+                #         patch_annos[patch_h_idx, patch_w_idx] = most_common_value
+
+               
+                # #look how many colours there are in the originally sized segmetned image
+                # unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
+                
+                # #create the dictionary we will retun later analogously to the projection boundingboxes
+                # #compute the boundingboxes based on that new obj_id_mask
+                # bounding_boxes = []
+                # segment_id = 0
+            
+                # #go throught each colour and get the compoentnts
+                # for color in unique_colors:
+                #     # get the mask per colour
+                #     mask = cv2.inRange(patch_annos, color, color)
+                #     # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
+                #     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+                #     #visualize the rectangles
+                #     for i in range(1, num_labels):  # Start from 1 to skip the background
+                #         #assign the component a new id
+                #         segment_id += 1
+                #         min_col, min_row, width, height, _ = stats[i]
+                #         #get the mask of the componenet
+                #         component_mask = (labels == i).astype(np.uint8) *225
+
+                #         # Store bounding box information
+                #         bounding_boxes.append({
+                #             'object_id': segment_id,
+                #             'bbox': [min_col*self.image_patch_w, min_row*self.image_patch_h, width*self.image_patch_w, height*self.image_patch_h],
+                #             'mask': component_mask
+                #             })
 
                
             
                 #save everything in a dictionary
-                info[frame_idx]= bounding_boxes
+                #info[frame_idx]= bounding_boxes
             
         #save the info 
         # save file
