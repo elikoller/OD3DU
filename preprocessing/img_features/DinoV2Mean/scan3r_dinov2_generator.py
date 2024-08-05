@@ -129,9 +129,9 @@ class Scan3rDinov2Generator():
 
         #print("scan ids", len(self.scan_ids))
         ## images info
-        self.image_paths = {}
+        self.image_path = {}
         for scan_id in self.scan_ids:
-            self.image_paths[scan_id] = scan3r.load_frame_paths(self.scans_dir, scan_id)
+            self.image_path[scan_id] = scan3r.load_frame_paths(self.scans_dir, scan_id)
         
         # model info
         self.model_name = cfg.model.name
@@ -161,6 +161,28 @@ class Scan3rDinov2Generator():
         self.image_patch_w = self.cfg.data.img_encoding.patch_w
         self.image_patch_h = self.cfg.data.img_encoding.patch_h
         self.step = self.cfg.data.img.img_step
+
+        # load 2D gt obj id annotation
+        self.gt_2D_anno_folder = osp.join(self.scans_files_dir, 'patch_anno/patch_anno_32_18')
+        self.obj_2D_annos_pathes = {}
+        for scan_id in self.scan_ids:
+            anno_2D_file = osp.join(self.gt_2D_anno_folder, "{}.pkl".format(scan_id))
+            self.obj_2D_annos_pathes[scan_id] = anno_2D_file
+
+        #prepare stuff to save and levels
+        self.obj_visual_emb_dir= osp.join(self.scans_files_dir, 'Features2D/projection_topk')
+        common.ensure_dir(self.obj_visual_emb_dir)
+        
+        self.undefined = 0
+        self.vis = False
+        self.time_used = 0
+
+        # multiview config
+        self.top_k = 1
+        self.multi_level_expansion_ratio = 0.2
+        self.num_of_levels = 1
+        self.feat_dim = 1536
+        
         
         ## out dir 
         if(self.proj):
@@ -198,6 +220,9 @@ class Scan3rDinov2Generator():
         return feature
     
 
+    """
+    for the dino segmentated input
+    """
 
     #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
@@ -210,118 +235,6 @@ class Scan3rDinov2Generator():
         object_boxes = object_info[frame_number]
         return object_boxes
 
-        # #access the saved segmentation from dinov2
-        # frame_path = osp.join(data_dir,"files/Segmentation/Dinov2",  scan_id, "frame-{}.jpg".format(frame_number))
-        #                     #different approach 
-        
-        # segmented_img = cv2.imread(frame_path)
-        # #print("shape of segmetned", segmented_img.shape)
-
-        # img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
-
-        # # Initialize the new image
-        # patch_annos = np.zeros_like(segmented_img)
-
-        # # Calculate patch dimensions
-        # patch_width = img_width // self.image_patch_w
-        # patch_height = img_height // self.image_patch_h
-
-        # # Process each patch
-        # for h in range(0, img_height, patch_height):
-        #     for w in range(0, img_width, patch_width):
-        #         # Extract the patch
-        #         patch = segmented_img[h:h+patch_height, w:w+patch_width]
-
-        #         # Reshape patch to a list of colors
-        #         reshaped_patch = patch.reshape(-1, 3)
-
-        #         # Find the most common color
-        #         reshaped_patch_tuple = [tuple(color) for color in reshaped_patch]
-        #         value_counts = Counter(reshaped_patch_tuple)
-        #         most_common_value = value_counts.most_common(1)[0][0]
-
-        #         # Fill the patch with the most common color
-        #         patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
-
-
-        # #look how many colours there are in the img
-        # unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
-        
-        # #create the dictionary we will retun later analogously to the projection boundingboxes
-        # #compute the boundingboxes based on that new obj_id_mask
-        # bounding_boxes = []
-        # segment_id = 0
-    
-        # #go throught each colour and get the compoentnts
-        # for color in unique_colors:
-        #     # get the mask per colour
-        #     mask = cv2.inRange(patch_annos, color, color)
-        #     # get the individual components within that mask (connedted regions) using 8 neighboudhood connectvity
-        #     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
-        #     #visualize the rectangles
-        #     for i in range(1, num_labels):  # Start from 1 to skip the background
-        #         #assign the component a new id
-        #         segment_id += 1
-        #         min_col, min_row, width, height, _ = stats[i]
-        #         # Store bounding box information
-        #         bounding_boxes.append({
-        #             'object_id': segment_id,
-        #             'bbox': [min_col, min_row, width, height]
-        #         })
-
-        # return bounding_boxes
-
-
-    #using the ground truth projection, create boundingboxes for each object :)
-    def bounding_boxes_for_projection(self,data_dir, scan_id, frame_number):
-        #access the projection
-
-        proj_rgb= osp.join(data_dir, "files/gt_projection", "obj_id", scan_id,"frame-" + frame_number +".jpg")
-        #print("proj file", proj_rgb)
-        obj_mat = cv2.imread(proj_rgb, cv2.IMREAD_UNCHANGED)
-        img_height, img_width= obj_mat.shape
-        new_id = np.zeros_like(obj_mat)
-        patch_width = int(self.image_w/self.image_patch_w)
-        patch_height = int(self.image_h/self.image_patch_h)
-        
-        for h in range(0, img_height, patch_height):
-            for w in range(0, img_width, patch_width):
-                patch = obj_mat[h:h+patch_height, w:w+patch_width]
-                # flatten the array to 1d
-                flattened_patch = patch.flatten()
-                # Find the most common value
-                value_counts = Counter(flattened_patch)
-                most_common_value = value_counts.most_common(1)[0][0]
-                # Fill the patch with the most common color
-                new_id[h:h+patch_height, w:w+patch_width] = most_common_value
-
-
-        #compute the boundingboxes based on that new obj_id_mask
-        bounding_boxes = []
-        unique_ids = np.unique(new_id)
-    
-        #make the boundingboxes for the ids which got recognized
-        for obj_id in unique_ids:
-            # Create mask for current object ID
-            mask = (new_id == obj_id)
-
-            # Find bounding box coordinates
-            rows, cols = np.nonzero(mask)
-            if len(rows) > 0 and len(cols) > 0:
-                min_row, max_row = np.min(rows) - (patch_height), np.max(rows) + (patch_height)
-                min_col, max_col = np.min(cols) - (patch_width), np.max(cols) + (patch_width)
-
-                # Calculate height and width
-                height = max_row - min_row + 1
-                width = max_col - min_col +1
-
-                # Store bounding box information
-                bounding_boxes.append({
-                    'object_id': obj_id,
-                    'bbox': [min_col, min_row, width, height]
-                })
-
-        return bounding_boxes
     
         
     def generateFeaturesEachScan(self, scan_id):
@@ -329,7 +242,7 @@ class Scan3rDinov2Generator():
         frame_features = {}
 
         # Load image paths and frame indices
-        img_paths = self.image_paths[scan_id]
+        img_paths = self.image_path[scan_id]
         frame_idxs_list = list(img_paths.keys())
         frame_idxs_list.sort()
 
@@ -346,13 +259,11 @@ class Scan3rDinov2Generator():
 
                 # Load bounding boxes and patch IDs for the current frame
                 #path_proj_bboxes = osp.join(self.data_root_dir, "bboxes", scan_id, "gt_projection", f"frame-{frame_idx}.npy")
-                if self.proj:
-                    #get the projection boundingboxes
-                    bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
+               
 
-                if self.dino:
-                    #get the boundingboxes for the seggmentation with dino data
-                    bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
+            
+                #get the boundingboxes for the seggmentation with dino data
+                bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
 
                 # Initialize dictionary for embeddings per object ID in the current frame
                 frame_features[frame_idx] = {}
@@ -387,26 +298,152 @@ class Scan3rDinov2Generator():
 
         return frame_features
 
+    """
+    for the projection and creation of levels
+    """
+
+    # openmask3d multi-level functions
+    def mask2box(self, mask: torch.Tensor):
+        row = torch.nonzero(mask.sum(axis=0))[:, 0]
+        if len(row) == 0:
+            return None
+        x1 = row.min().item()
+        x2 = row.max().item()
+        col = np.nonzero(mask.sum(axis=1))[:, 0]
+        y1 = col.min().item()
+        y2 = col.max().item()
+        return x1, y1, x2 + 1, y2 + 1
+
+    def mask2box_multi_level(self, mask: torch.Tensor, level, expansion_ratio):
+        x1, y1, x2 , y2  = self.mask2box(mask)
+        if level == 0:
+            return x1, y1, x2 , y2
+        shape = mask.shape
+        x_exp = int(abs(x2- x1)*expansion_ratio) * level
+        y_exp = int(abs(y2-y1)*expansion_ratio) * level
+        return max(0, x1 - x_exp), max(0, y1 - y_exp), min(shape[1], x2 + x_exp), min(shape[0], y2 + y_exp)
     
+
+
+
+    def generateObjVisualEmbScan(self, scan_id):
+        obj_image_votes = {}
+        
+        # load gt 2D obj anno
+        obj_anno_2D_file = self.obj_2D_annos_pathes[scan_id]
+        obj_anno_2D = common.load_pkl_data(obj_anno_2D_file)
+        
+        # iterate over all frames
+        for frame_idx in obj_anno_2D:
+            obj_2D_anno_frame = obj_anno_2D[frame_idx]
+            ## process 2D anno
+            obj_ids, counts = np.unique(obj_2D_anno_frame, return_counts=True)
+            for idx in range(len(obj_ids)):
+                obj_id = obj_ids[idx]
+                count = counts[idx]
+                if obj_id == self.undefined:
+                    continue
+                if obj_id not in obj_image_votes:
+                    obj_image_votes[obj_id] = {}
+                if frame_idx not in obj_image_votes[obj_id]:
+                    obj_image_votes[obj_id][frame_idx] = 0
+                obj_image_votes[obj_id][frame_idx] = count
+        ## select top K frames for each obj
+        obj_image_votes_topK = {}
+        for obj_id in obj_image_votes:
+            obj_image_votes_topK[obj_id] = []
+            obj_image_votes_f = obj_image_votes[obj_id]
+            sorted_frame_idxs = sorted(obj_image_votes_f, key=obj_image_votes_f.get, reverse=True)
+            if len(sorted_frame_idxs) > self.top_k:
+                obj_image_votes_topK[obj_id] = sorted_frame_idxs[:self.top_k]
+            else:
+                obj_image_votes_topK[obj_id] = sorted_frame_idxs
+        ## get obj visual emb
+        obj_visual_emb = {}
+        for obj_id in obj_image_votes_topK:
+            obj_image_votes_topK_frames = obj_image_votes_topK[obj_id]
+            obj_visual_emb[obj_id] = {}
+            for frame_idx in obj_image_votes_topK_frames:
+                obj_visual_emb[obj_id][frame_idx] = self.generate_visual_emb(
+                    scan_id, frame_idx, obj_id, obj_anno_2D[frame_idx])    
+        obj_patch_info = {
+            'obj_visual_emb': obj_visual_emb,
+            'obj_image_votes_topK': obj_image_votes_topK,
+        }
+        return obj_patch_info
+    
+    #create the virual embedding of the mean of the top 10
+    def generate_visual_emb(self, scan_id, frame_idx, obj_id, gt_anno):
+        if self.img_rotate:
+            obj_2D_anno_f_rot = gt_anno.transpose(1, 0)
+            obj_2D_anno_f_rot = np.flip(obj_2D_anno_f_rot, 1)
+        # load image
+        image_path = self.image_path[scan_id][frame_idx]
+        image = Image.open(image_path)
+        if self.img_rotate:
+            image = image.transpose(Image.ROTATE_270)
+        if self.vis:
+            image.show()
+            cv2.imshow("obj_2D_anno_f_rot", np.array(obj_2D_anno_f_rot))
+        # get obj mask
+        obj_mask = obj_2D_anno_f_rot == obj_id
+        # extract multi-level crop dinov2 features
+        start = time.time()
+        images_crops = []
+        for level in range(self.num_of_levels):
+            mask_tensor = torch.from_numpy(obj_mask).float()
+            x1, y1, x2, y2 = self.mask2box_multi_level(mask_tensor, level, self.multi_level_expansion_ratio)
+            cropped_img = image.crop((x1, y1, x2, y2))
+            cropped_img = cropped_img.resize((224, 224), Image.BICUBIC)
+            img_pt = self.base_tf(cropped_img)
+            images_crops.append(img_pt)
+       
+        if(len(images_crops) > 0):
+            image_input =torch.stack(images_crops).to(self.device)
+            with torch.no_grad():
+                ret = self.extractor(image_input) # [1, num_patches, desc_dim]  
+                mean_patch = torch.mean(ret, dim=0)
+            
+
+        self.time_used += time.time() - start
+        return mean_patch.cpu().detach().numpy()
+    
+  
+    
+
+
+    
+
+
+    """
+    generate the features
+    """
     
     def generateFeatures(self):
         img_num = 0
         self.feature_generation_time = 0.0
         #print("scanid in generate function", self.scan_ids)
         for scan_id in tqdm(self.scan_ids):
-            with torch.no_grad():
-                imgs_features = self.generateFeaturesEachScan(scan_id)
-            img_num += len(imgs_features)
-            out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
-            common.write_pkl_data(imgs_features, out_file)
+            if (scan_id == "02b33e01-be2b-2d54-93fb-4145a709cec5" ) or (scan_id == "fcf66d8a-622d-291c-8429-0e1109c6bb26"):
+                if self.dino == True:
+                    with torch.no_grad():
+                        imgs_features = self.generateFeaturesEachScan(scan_id)
+                    img_num += len(imgs_features)
+                    out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
+                    common.write_pkl_data(imgs_features, out_file)
+
+                if self.proj == True:
+                    obj_patch_info = self.generateObjVisualEmbScan(scan_id)
+                    obj_visual_emb_file = osp.join(self.obj_visual_emb_dir, "{}.pkl".format(scan_id))
+                    common.write_pkl_data(obj_patch_info, obj_visual_emb_file) 
 
 
             
         # log
-        log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
-            self.feature_generation_time, img_num, self.feature_generation_time / img_num)
-        with open(self.log_file, 'a') as f:
-            f.write(log_str)
+        # log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
+        #     self.feature_generation_time, img_num, self.feature_generation_time / img_num)
+        # with open(self.log_file, 'a') as f:
+        #     f.write(log_str)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
