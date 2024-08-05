@@ -115,40 +115,42 @@ torch.cuda.empty_cache()
 
 
 frame_numbers = ["000008", "000007"]
-scan_id = "38770c95-86d7-27b8-8717-3485b411ddc7"
+scan_ids = ["02b33e01-be2b-2d54-93fb-4145a709cec5","fcf66d8a-622d-291c-8429-0e1109c6bb26"]
 
 for frame_number in frame_numbers:
-    img_path = osp.join("/local/home/ekoller/R3Scan/scenes", scan_id, "sequence/frame-{}.color.jpg".format(frame_number))
+    for scan_id in scan_ids:
+        img_path = osp.join("/local/home/ekoller/R3Scan/scenes", scan_id, "sequence/frame-{}.color.jpg".format(frame_number))
 
-    img = Image.open(img_path).convert('RGB')
-    img = img.transpose(Image.ROTATE_270)
-
-
-    array = np.array(img)
+        img = Image.open(img_path).convert('RGB')
+        img = img.transpose(Image.ROTATE_270)
 
 
-    # #actually take the url
-    # def load_image_from_url(url: str) -> Image:
-    #     with urllib.request.urlopen(url) as f:
-    #         return Image.open(f).convert("RGB")
+        array = np.array(img)
 
 
-    # EXAMPLE_IMAGE_URL = "https://dl.fbaipublicfiles.com/dinov2/images/example.jpg"
+        # #actually take the url
+        # def load_image_from_url(url: str) -> Image:
+        #     with urllib.request.urlopen(url) as f:
+        #         return Image.open(f).convert("RGB")
 
 
-    # image = load_image_from_url(EXAMPLE_IMAGE_URL)
-    # array = np.array(image)[:, :, ::-1] # BGR
-    print("inputsize" ,array.shape)
+        # EXAMPLE_IMAGE_URL = "https://dl.fbaipublicfiles.com/dinov2/images/example.jpg"
 
-    print("--- image got loaded ---")
-    #less momry
-    with torch.no_grad():
-        segmentation_logits = inference_segmentor(model, array)[0]
 
-    print("--- image gets rendered ----")
-    segmented_image = render_segmentation(segmentation_logits, "ade20k")
-    segmented_image_np = np.array(segmented_image)
-    #to do assert the folder
-    cv2.imwrite("/local/home/ekoller/tmp_result/segmentedimg_r3_rotated.jpg", segmented_image_np)
-    print("--- image got saved ---")
+        # image = load_image_from_url(EXAMPLE_IMAGE_URL)
+        # array = np.array(image)[:, :, ::-1] # BGR
+        print("inputsize" ,array.shape)
+
+        print("--- image got loaded ---")
+        #less momry
+        with torch.no_grad():
+            segmentation_logits = inference_segmentor(model, array)[0]
+
+        print("--- image gets rendered ----")
+        segmented_image = render_segmentation(segmentation_logits, "ade20k")
+        segmented_image_np = np.array(segmented_image)
+        segmented_img = cv2.rotate(segmented_image_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        #to do assert the folder
+        cv2.imwrite(osp.join("/local/home/ekoller/tmp_result", scan_id,"segmentedimg_{}.jpg".format(frame_number)), segmented_img)
+        print("--- image got saved ---")
 
