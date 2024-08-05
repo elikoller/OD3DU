@@ -212,6 +212,7 @@ class DinoSegmentor():
         frame_idxs_list.sort()
         scan_result_path_color = osp.join(self.out_dir_color,scan_id)
 
+    
         #initialize a dict for the objects
         info = {}
         
@@ -321,7 +322,7 @@ class DinoSegmentor():
                         min_col, min_row, width, height, _  = stats[i]
                     
                         # Extract the mask for the current component
-                        component_mask = (labels == i).astype(np.uint8)
+                        component_mask = (labels == i).astype(np.uint8) * 225
                         #Store bounding box information
                         bounding_boxes.append({
                             'object_id': segment_id,
@@ -412,6 +413,8 @@ class DinoSegmentor():
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 self.segment_each_scan(model,scan_id)
+                
+            
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
