@@ -178,7 +178,7 @@ class Scan3rDinov2Generator():
         self.time_used = 0
 
         # multiview config
-        self.top_k = 1
+        self.top_k = 15
         self.multi_level_expansion_ratio = 0.2
         self.num_of_levels = 1
         self.feat_dim = 1536
@@ -186,7 +186,7 @@ class Scan3rDinov2Generator():
         
         ## out dir 
         if(self.proj):
-            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
+            self.out_dir = osp.join(self.scans_files_dir, 'Features2D/top_15_projection', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
 
         if(self.dino):
             self.out_dir = osp.join(self.scans_files_dir, 'Features2D/dino_segmentation', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
@@ -408,11 +408,6 @@ class Scan3rDinov2Generator():
         self.time_used += time.time() - start
         return mean_patch.cpu().detach().numpy()
     
-  
-    
-
-
-    
 
 
     """
@@ -424,7 +419,7 @@ class Scan3rDinov2Generator():
         self.feature_generation_time = 0.0
         #print("scanid in generate function", self.scan_ids)
         for scan_id in tqdm(self.scan_ids):
-            if (scan_id == "02b33e01-be2b-2d54-93fb-4145a709cec5" ) or (scan_id == "fcf66d8a-622d-291c-8429-0e1109c6bb26"):
+                #do it for the dino segmentation
                 if self.dino == True:
                     with torch.no_grad():
                         imgs_features = self.generateFeaturesEachScan(scan_id)
@@ -433,8 +428,9 @@ class Scan3rDinov2Generator():
                     common.write_pkl_data(imgs_features, out_file)
 
                 if self.proj == True:
-                    obj_patch_info = self.generateObjVisualEmbScan(scan_id)
-                    obj_visual_emb_file = osp.join(self.obj_visual_emb_dir, "{}.pkl".format(scan_id))
+                    with torch.no_grad():
+                        obj_patch_info = self.generateObjVisualEmbScan(scan_id)
+                    obj_visual_emb_file = osp.join(self.out_dir, "{}.pkl".format(scan_id))
                     common.write_pkl_data(obj_patch_info, obj_visual_emb_file) 
 
 

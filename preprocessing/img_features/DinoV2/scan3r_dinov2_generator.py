@@ -428,9 +428,9 @@ def main():
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     #also generate for the dino_:segmentation boundingboxes
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    scan3r_gcvit_generator.register_model()
+    scan3r_gcvit_generator.generateFeatures()
 
     # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val', for_proj= True)
     # scan3r_gcvit_generator.register_model()
