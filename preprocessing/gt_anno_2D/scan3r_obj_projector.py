@@ -128,8 +128,8 @@ class Scan3RIMGProjector():
             img_pose_inv = np.linalg.inv(img_pose)
             color_map, obj_id_map = self.segmentResult(
                 scene, intrinsics, img_pose_inv, img_width, img_height, 
-                mesh_triangles, num_triangles, colors, obj_labels, global_labels
-            )
+                mesh_triangles, num_triangles, colors, obj_labels
+            ) #global_labels
             obj_id_imgs[frame_idx] = obj_id_map
             #global_id_imgs[frame_idx] = global_id_map
             color_imgs[frame_idx] = color_map

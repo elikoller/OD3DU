@@ -32,21 +32,22 @@ print(ws_dir)
 sys.path.append(ws_dir)
 from utils import common
 
+
 """
 this file is adapted from the demo notebook provided by facebook, found in the src folder
 """
 # Check PyTorch CUDA availability
-# print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
-# print(torch.__version__)
-# # Print CUDA and cuDNN version
-# print(f"CUDA version: {torch.version.cuda}")
-# print(f"cuDNN version: {torch.backends.cudnn.version()}")
-# print("mmsec version", mmseg.__version__)
-# print("PyTorch version:", torch.__version__)
-# print("CUDA version:", torch.version.cuda)
-# print("CUDA available:", torch.cuda.is_available())
-# print("Current device:", torch.cuda.current_device())
-# print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
+print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
+print(torch.__version__)
+# Print CUDA and cuDNN version
+print(f"CUDA version: {torch.version.cuda}")
+print(f"cuDNN version: {torch.backends.cudnn.version()}")
+print("mmsec version", mmseg.__version__)
+print("PyTorch version:", torch.__version__)
+print("CUDA version:", torch.version.cuda)
+print("CUDA available:", torch.cuda.is_available())
+print("Current device:", torch.cuda.current_device())
+print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 
 class DinoSegmentor():
     def __init__(self, cfg, split):
@@ -91,13 +92,24 @@ class DinoSegmentor():
             for scan in scan_data['scans']:
                 self.refscans2scans[ref_scan_id].append(scan['reference'])
                 self.scans2refscans[scan['reference']] = ref_scan_id
+                
+        #take only the split file      
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
+
         ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split:
-            self.all_scans_split += self.refscans2scans[ref_scan]
+            #self.all_scans_split.append(ref_scan)
+            # Check and add one rescan for the current reference scan
+            rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
+            if rescans:
+                # Add the first rescan (or any specific rescan logic)
+                self.all_scans_split.append(rescans[0])
+
+         
+
         if self.rescan:
             self.scan_ids = self.all_scans_split
         else:
@@ -107,6 +119,8 @@ class DinoSegmentor():
         """
         we only need the rescans since they are the input
         """
+
+        #also remove the already precomputed ones
         self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]
 
 
@@ -241,12 +255,15 @@ class DinoSegmentor():
                 #get the image
                 img = Image.open(img_path).convert('RGB')
 
+                #img = img.resize((120, 50), Image.BILINEAR)
 
                 #rotate it around if necessary
                 if self.img_rotate:
                     img = img.transpose(Image.ROTATE_270)
 
                 #make an np array
+                #device = torch.device('cuda')
+                #img_tensor = torch.from_numpy(np.array(img)).to(device)
                 array = np.array(img)
                 print("image shape", array.shape)
 
@@ -338,7 +355,7 @@ class DinoSegmentor():
                             })
                         
 
-
+                
                 info[frame_idx]= bounding_boxes
 
                 # img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
@@ -416,6 +433,7 @@ class DinoSegmentor():
     #iterate over the scans and do the segmentation
     def segmentation(self):
         model = self.load_pretrained_model()
+        #import pdb; pdb.set_trace()
         #iterate over each scan which where selected in the initialization
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():

@@ -3,7 +3,7 @@ export Scan3R_ROOT_DIR='/local/home/ekoller/R3Scan'
 export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 
 # activate conda env
-# conda activate VLSG
+# conda activate VLSG   new_dino_seg
 source $CONDA_BIN/activate new_dino_seg
 
 cd $VLSG_SPACE
