@@ -103,6 +103,13 @@ class DinoSegmentor():
         else:
             self.scan_ids = ref_scans_split
 
+
+        """
+        we only need the rescans since they are the input
+        """
+        self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]
+        
+
         #print("scan ids", len(self.scan_ids))
         ## images info
         self.image_paths = {}

@@ -127,6 +127,18 @@ class Scan3rDinov2Generator():
         else:
             self.scan_ids = ref_scans_split
 
+
+        """
+        differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
+        """
+        if self.for_proj:
+            self.scan_ids = ref_scans_split #only take the reference scans
+        
+        if self.for_dino_seg:
+            self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]#only take the rescans
+
+
+
         #print("scan ids", len(self.scan_ids))
         ## images info
         self.image_paths = {}
