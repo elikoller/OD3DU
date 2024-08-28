@@ -108,7 +108,7 @@ class DinoSegmentor():
         we only need the rescans since they are the input
         """
         self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]
-        
+
 
         #print("scan ids", len(self.scan_ids))
         ## images info
@@ -270,7 +270,7 @@ class DinoSegmentor():
                 #safe the image as a colourful mask 
                 img_name = "frame-"+str(frame_idx)+".jpg"
                 file_path = osp.join(scan_result_path_color,img_name)
-                cv2.imwrite(file_path,segmented_img)
+                #cv2.imwrite(file_path,segmented_img)
 
                 #also create a dictionary for the  by creating a object_based view 
                  #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
