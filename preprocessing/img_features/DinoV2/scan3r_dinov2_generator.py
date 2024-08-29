@@ -6,6 +6,9 @@ import pickle
 import sys
 from tracemalloc import start
 import cv2
+from sklearn.decomposition import PCA
+from sklearn.manifold import MDS
+from sklearn.manifold import TSNE
 from sklearn.utils import resample
 from yaml import scan
 ws_dir = osp.dirname(osp.dirname(osp.dirname(osp.dirname(osp.abspath(__file__)))))
@@ -285,6 +288,13 @@ class Scan3rDinov2Generator():
         frame_idxs_list = list(img_paths.keys())
         frame_idxs_list.sort()
 
+        #we need the average of each thing
+        averages = []
+        #we need the max-pooling
+        maxes = []
+        #we need the ids per point to keep track
+        all_ids = []
+
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
             start_idx = infer_step_i * self.inference_step
             end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
@@ -335,11 +345,106 @@ class Scan3rDinov2Generator():
                         ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
 
                     # Store the embedding in the dictionary under the object ID
-                    frame_features[frame_idx][object_id] = ret[0].cpu().numpy()
+                    res = ret[0].cpu().numpy()
+                    #frame_features[frame_idx][object_id] = res
+
+                    """
+                    prepare the features for the transformation/ fitting, keep track of the indices!!
+                    """
+                    #add the id in the correct place
+                    all_ids.append(object_id)
+                    #make the average and append
+                    avg = np.mean(res, axis=0)  # Max pooling across patches
+                    averages.append(avg)
+
+                    #make the max pooling
+                    max = np.max(res, axis=0)
+                    maxes.append(max)
+
 
         """
-        in order to save space on the disk we will only save the PCA model
+        in order to save space on the disk we will only save the PCA/ MDS / t-sne model for fast access of the segdino computation
+        also save the projected points since they use a lot less memory:)
+        fill in this part separatly for proj
         """
+        #turn into numpy arrays
+        all_ids = np.array(all_ids)
+        maxes = np.array(maxes)
+        averages = np.array(averages)
+
+
+        #we need the ids in every case
+        frame_features["obj_ids"] = all_ids
+
+        #for the current scene we need to create the projection spaces & project the points
+        if self.proj:
+            #pca_avg
+            pca_avg = PCA(n_components=3)
+            pca_avg_red = pca_avg.fit_transform(averages)
+            #pca_max
+            pca_max = PCA(n_components=3)
+            pca_max_red = pca_max.fit_transform(maxes)
+            
+            #mds_avg
+            mds_avg = MDS(n_components=3, random_state=42)
+            mds_avg_red = mds_avg.fit_transform(averages)
+            #mds_max
+            mds_max = MDS(n_components=3, random_state=42)
+            mds_max_red = mds_max.fit_transform(maxes)
+
+            #tsne_avg
+            tsne_avg = TSNE(n_components=3, random_state=42)
+            tsne_avg_red = tsne_avg.fit_transform(averages)
+            #tsne_max
+            tsne_max = TSNE(n_components=3, random_state=42)
+            tsne_max_red = tsne_max.fit_transform(maxes)
+
+            #put everything into the object  
+            # pca          
+            frame_features["pca_avg"] = {
+                "matrix": pca_avg,
+                "points": pca_avg_red
+            }
+            frame_features["pca_max"] = {
+                "matrix": pca_max,
+                "points": pca_max_red
+            }
+            #mds
+            frame_features["mds_avg"] = {
+                "matrix": mds_avg,
+                "points": mds_avg_red
+            }
+            frame_features["mds_max"] = {
+                "matrix": mds_max,
+                "points": mds_max_red
+            }
+            #tsne
+            frame_features["tsne_avg"] = {
+                "matrix": tsne_avg,
+                "points": tsne_avg_red
+            }
+            frame_features["tnse_max"] = {
+                "matrix": tsne_max,
+                "points": tsne_max_red
+            }
+
+        #this is for the input images of the unseen scene changes
+        if self.dino:
+            #we need to access the pca ot the reference frame
+            reference_id = scan3r.get_reference_id(self.scans_dir,scan_id)
+            space_path = osp.join(self.scans_files_dir, 'Features2D/projection', self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
+
+
+
+
+
+
+
+
+
+
+
+
         return frame_features
 
     
