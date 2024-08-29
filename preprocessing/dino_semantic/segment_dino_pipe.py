@@ -116,12 +116,9 @@ class DinoSegmentor():
             self.scan_ids = ref_scans_split
 
 
-        """
-        we only need the rescans since they are the input
-        """
+        print("scan_id_length", len(self.scan_ids))
 
-        #also remove the already precomputed ones
-        self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]
+
 
 
         #print("scan ids", len(self.scan_ids))
@@ -138,7 +135,7 @@ class DinoSegmentor():
         #outputpath for total images
         self.out_dir_color = osp.join(self.scans_files_dir, 'Segmentation/DinoV2/color')
         #output path for components
-        self.out_dir_objects = osp.join(self.scans_files_dir, 'Segmentation/DinoV2/objects')
+        self.out_dir_objects = '/media/ekoller/T7/Segmentation/DinoV2/objects'
 
 
         common.ensure_dir(self.out_dir_color)
@@ -265,9 +262,7 @@ class DinoSegmentor():
                 #device = torch.device('cuda')
                 #img_tensor = torch.from_numpy(np.array(img)).to(device)
                 array = np.array(img)
-                print("image shape", array.shape)
 
-                #print("inputsize" ,array.shape)
 
                 #print("--- image got loaded ---")
                 #less momry
@@ -357,6 +352,7 @@ class DinoSegmentor():
 
                 
                 info[frame_idx]= bounding_boxes
+                print("frame ", frame_idx, " is done")
 
                 # img_height, img_width, _ = segmented_img.shape  # Assuming the image is in RGB format
 
@@ -438,6 +434,7 @@ class DinoSegmentor():
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 self.segment_each_scan(model,scan_id)
+                print("scan id  is done ", scan_id)
                 
             
 
