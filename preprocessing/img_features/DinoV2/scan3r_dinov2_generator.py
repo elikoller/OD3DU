@@ -408,24 +408,24 @@ class Scan3rDinov2Generator():
                     #fill in the frame_feature dictionary for this frame, keep structure the same as for the proj for easier handling
                     frame_features[frame_idx]["obj_ids"] = frame_ids
                     #pca
-                    frame_features["pca_avg"] = {
+                    frame_features[frame_idx]["pca_avg"] = {
                         "points": frame_red_pca_avg
                     }
-                    frame_features["pca_max"] = {
+                    frame_features[frame_idx]["pca_max"] = {
                         "points": frame_red_pca_max
                     }
                     #mds
-                    frame_features["mds_avg"] = {
+                    frame_features[frame_idx]["mds_avg"] = {
                         "points": frame_red_mds_avg
                     }
-                    frame_features["mds_max"] = {
+                    frame_features[frame_idx]["mds_max"] = {
                         "points": frame_red_mds_max
                     }
                     #tsne
-                    frame_features["tsne_avg"] = {
+                    frame_features[frame_idx]["tsne_avg"] = {
                         "points": frame_red_tsne_avg
                     }
-                    frame_features["tnse_max"] = {
+                    frame_features[frame_idx]["tnse_max"] = {
                         "points": frame_red_tsne_max
                     }
         

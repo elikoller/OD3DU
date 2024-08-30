@@ -152,7 +152,7 @@ class DinoSegmentor():
             return f.read().decode()
         
     """
-    Code cuplication with utils scan3r, Reason: the environment of 
+    Code cuplication with utils scan3r, Reason: the environment of this model is very lets say particular :) 
     """
 
     
@@ -280,8 +280,8 @@ class DinoSegmentor():
                 #print("--- image got saved ---")
                 
                 #safe the image as a colourful mask 
-                img_name = "frame-"+str(frame_idx)+".jpg"
-                file_path = osp.join(scan_result_path_color,img_name)
+                #img_name = "frame-"+str(frame_idx)+".jpg"
+                #file_path = osp.join(scan_result_path_color,img_name)
                 #cv2.imwrite(file_path,segmented_img)
 
                 #also create a dictionary for the  by creating a object_based view 

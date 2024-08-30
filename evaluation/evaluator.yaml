@@ -1,0 +1,13 @@
+data :
+  name            : Scan3R
+  root_dir        : '' # to be read in code from env varia  
+  rescan: True
+  resplit: True
+  log_dir: "./preprocessing/img_features/DinoV2"
+  img:
+    img_step: 1
+    w: 960
+    h: 540
+  img_encoding:
+    patch_w: 32 # number of patchs in width
+    patch_h: 18
