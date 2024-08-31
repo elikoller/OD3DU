@@ -145,6 +145,7 @@ class Evaluator():
     def get_majorities(self, distanc, obj_ids, k , th):
         #make te majority voting
         majorities = []
+        unique_new_obj = -1
         for i, (dist , ids) in enumerate(zip(distanc,obj_ids)):
             closest_dist = dist[:k]
             closest_ids = ids[:k]
@@ -158,7 +159,8 @@ class Evaluator():
             #thresthold the average majority of the distances, it it is above the threshold, give the id -1 which represents an unseen obj
             if average_distance >= th:
                 #too far away
-                majorities.append(-1)
+                majorities.append(unique_new_obj)
+                unique_new_obj = unique_new_obj -1
             else:
                 majorities.append(most_common_class)
 
@@ -211,7 +213,89 @@ class Evaluator():
         return patchwise_id
 
 
-    def compute_obj_metric(self, gt_input,patch_level):
+
+
+    def compute_patch_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+        # Flatten matrices to iterate over each element
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+        
+        #initialize the result
+        percentage = []
+    
+        #iterate through everything
+
+        for idx in range(len(flat_gt)):
+            #since we can only compare to gt_patches skip everything that has gt_id == 0 == nothing
+            if flat_gt[idx] != 0:
+                #object ids are the same
+                if flat_gt[idx] == flat_comp[idx]:
+                    percentage.append(1)
+                #the object id is actually new and was recognized as new
+                elif (flat_gt[idx] in new_objects) and  (flat_comp[idx] < 0):
+                    percentage.append(1)
+                else:
+                    percentage.append(0)
+
+        percentage = np.array(percentage)
+        mean_percentage = np.mean(percentage)
+        return mean_percentage
+    
+
+    def compute_obj_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+
+
+        # Flatten matrices to iterate over each element
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+
+        #look at obj_ids > 0  so the ones which were present in the reference scene
+        positive_mask = flat_gt > 0
+        positive_gt = flat_gt[positive_mask]
+        positive_comp = flat_comp[positive_mask]
+
+        #how many unique ids are in the gt
+        total_positiv_unique_gt = len(np.unique(positive_gt))
+
+        #get the ones which are correctly assinged
+        comparison_mask = positive_gt == positive_comp
+
+        matching = positive_gt[comparison_mask]
+        #how many unique ids were correctly matched
+        total_positive_unique_comp = len(np.unique(matching))
+
+
+
+        #look at the newly found objects now
+        #in the computation with id < 0
+        negative_mask = flat_gt < 0
+        new_obj_comp = flat_comp[negative_mask]
+        #in the gt
+        new_objects_mask = np.isin(positive_gt, list(new_objects))
+        new_obj_gt = flat_gt[new_objects_mask]
+
+        comparison_mask_new = new_obj_gt == new_obj_comp
+        matching_new = new_obj_comp[comparison_mask_new]
+        #how many new objects were matched
+        total_new_unique_comp = np.unique(matching_new)
+        total_new_unique_gt = len(new_objects)
+
+        #if more new objects than in the gt set to gt number
+        if len(total_new_unique_comp) > len(total_new_unique_gt):
+            total_new_unique_comp = len(total_new_unique_gt)
+
+        
+        #put everything together
+
+        return (total_positive_unique_comp + total_new_unique_comp)/(total_positiv_unique_gt + total_new_unique_gt)
+
+
+
+    
 
          
 
@@ -283,8 +367,10 @@ class Evaluator():
             with open(segmentation_info_path, 'rb') as file:
                 segmentation_data = pickle.load(file)
 
-            #access the colour dictionaries we will later need to see which object ids are there
-            ref_colours = self.get_present_obj_ids(self.data_root_dir,scan_id)
+            #find out which objects have not been present in the reference scene ( not only frame!)
+            present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
+            present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
+            new_objects = present_obj_scan - present_obj_reference
     
 
             #now the frame
@@ -358,12 +444,12 @@ class Evaluator():
                             
                             #finally compute the accuracies: based on area and object ids and fill into the matrix
                             #for cosine
-                            cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise,cosine_patch_level)
-                            cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise,cosine_patch_level)
+                            cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise,cosine_patch_level, new_objects)
+                            cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise,cosine_patch_level, new_objects)
 
                             #for euclid
-                            euclid_obj_metric[t_idx][k_idx] =self.compute_obj_metric(gt_input_patchwise,euclid_patch_level)
-                            euclid_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise,euclid_patch_level)
+                            euclid_obj_metric[t_idx][k_idx] =self.compute_obj_metric(gt_input_patchwise,euclid_patch_level, new_objects)
+                            euclid_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise,euclid_patch_level, new_objects)
 
 
 
