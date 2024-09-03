@@ -6,9 +6,6 @@ import pickle
 import sys
 from tracemalloc import start
 import cv2
-from sklearn.decomposition import PCA
-from sklearn.manifold import MDS
-from sklearn.manifold import TSNE
 from sklearn.utils import resample
 from yaml import scan
 ws_dir = osp.dirname(osp.dirname(osp.dirname(osp.dirname(osp.abspath(__file__)))))
@@ -218,7 +215,7 @@ class Scan3rDinov2Generator():
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
         #access the precomputed boundingboxes
         # Load data from the pickle file
-        file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
+        file_path = osp.join(data_dir,"files/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
         with open(file_path, 'rb') as file:
             object_info = pickle.load(file)
 
@@ -283,18 +280,10 @@ class Scan3rDinov2Generator():
         # Initialize a dictionary to store features per frame and object ID
         frame_features = {}
 
-
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
         frame_idxs_list = list(img_paths.keys())
         frame_idxs_list.sort()
-
-        #we need the average of each thing
-        averages = []
-        #we need the max-pooling
-        maxes = []
-        #we need the ids per point to keep track
-        all_ids = []
 
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
             start_idx = infer_step_i * self.inference_step
@@ -317,13 +306,8 @@ class Scan3rDinov2Generator():
                     #get the boundingboxes for the seggmentation with dino data
                     bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
 
-                # if we are in the dino seg we need a differently structured dictionary
-                if self.dino:
-                    frame_features[frame_idx] = {}
-                #we need the mean, max and ids of the frame
-                frame_averages = []
-                frame_maxes = []
-                frame_ids = []
+                # Initialize dictionary for embeddings per object ID in the current frame
+                frame_features[frame_idx] = {}
 
                 for bbox in bboxes:
                     object_id = bbox["object_id"]
@@ -351,159 +335,9 @@ class Scan3rDinov2Generator():
                         ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
 
                     # Store the embedding in the dictionary under the object ID
-                    res = ret[0].cpu().numpy()
-                    #frame_features[frame_idx][object_id] = res
-
-                    """
-                    prepare the features for the transformation/ fitting, keep track of the indices!!
-                    """
-                    #add the id in the correct place
-                    all_ids.append(object_id)
-                    frame_ids.append(object_id)
-                    #make the average and append
-                    avg = np.mean(res, axis=0)  # Max pooling across patches
-                    averages.append(avg)
-                    frame_averages.append(avg)
-
-                    #make the max pooling
-                    max = np.max(res, axis=0)
-                    maxes.append(max)
-                    frame_maxes.append(max)
-
-                
-                #this section does the projection for the dino segmentation unseen points
-                if self.dino:
-                    #access the different pcas
-                    proj_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h))
-                    with open(proj_path, 'rb') as file:
-                        # Load the contents of the file
-                        proj_data = pickle.load(file)
-
-                    #turn everything into a 
-                    frame_ids = np.array(frame_ids)
-                    frame_averages = np.array(frame_averages)
-                    frame_maxes = np.array(frame_maxes)
-                   
-                    #access the matricies needed for the projection
-                    #pca based on average and max
-                    scan_pca_avg = proj_data["pca_avg"]["matrix"]
-                    scan_pca_max = proj_data["pca_max"]["matrix"]
-                    #mds based on average and max
-                    scan_mds_avg = proj_data["mds_avg"]["matrix"]
-                    scan_mds_max = proj_data["mds_max"]["matrix"]
-                    #tsne based on average and max
-                    scan_tsne_avg = proj_data["tsne_avg"]["matrix"]
-                    scan_tsne_max = proj_data["tsne_max"]["matrix"]
-                    
-                    #pca reductions
-                    frame_red_pca_avg = scan_pca_avg.transform(frame_averages)
-                    frame_red_pca_max = scan_pca_max.transform(frame_maxes)
-                    #mds reductions
-                    frame_red_mds_avg = scan_mds_avg.transform(frame_averages)
-                    frame_red_mds_max = scan_mds_max.transform(frame_maxes)
-                    #tsne reductions
-                    frame_red_tsne_avg = scan_tsne_avg.transform(frame_averages)
-                    frame_red_tsne_max = scan_tsne_max.transform(frame_maxes)
-
-                    #fill in the frame_feature dictionary for this frame, keep structure the same as for the proj for easier handling
-                    frame_features[frame_idx]["obj_ids"] = frame_ids
-                    #pca
-                    frame_features[frame_idx]["pca_avg"] = {
-                        "points": frame_red_pca_avg
-                    }
-                    frame_features[frame_idx]["pca_max"] = {
-                        "points": frame_red_pca_max
-                    }
-                    #mds
-                    frame_features[frame_idx]["mds_avg"] = {
-                        "points": frame_red_mds_avg
-                    }
-                    frame_features[frame_idx]["mds_max"] = {
-                        "points": frame_red_mds_max
-                    }
-                    #tsne
-                    frame_features[frame_idx]["tsne_avg"] = {
-                        "points": frame_red_tsne_avg
-                    }
-                    frame_features[frame_idx]["tnse_max"] = {
-                        "points": frame_red_tsne_max
-                    }
-        
-
-
-
-        """
-        in order to save space on the disk we will only save the PCA/ MDS / t-sne model for fast access of the segdino computation
-        also save the projected points since they use a lot less memory:)
-        fill in this part separatly for proj
-        """
-
-        #for the current scene we need to create the projection spaces & project the points
-        if self.proj:
-
-            #turn into numpy arrays
-            all_ids = np.array(all_ids)
-            maxes = np.array(maxes)
-            averages = np.array(averages)
-
-
-            #we need the ids in every case
-            frame_features["obj_ids"] = all_ids
-
-            #pca_avg
-            pca_avg = PCA(n_components=3)
-            pca_avg_red = pca_avg.fit_transform(averages)
-            #pca_max
-            pca_max = PCA(n_components=3)
-            pca_max_red = pca_max.fit_transform(maxes)
-            
-            #mds_avg
-            mds_avg = MDS(n_components=3, random_state=42)
-            mds_avg_red = mds_avg.fit_transform(averages)
-            #mds_max
-            mds_max = MDS(n_components=3, random_state=42)
-            mds_max_red = mds_max.fit_transform(maxes)
-
-            #tsne_avg
-            tsne_avg = TSNE(n_components=3, random_state=42)
-            tsne_avg_red = tsne_avg.fit_transform(averages)
-            #tsne_max
-            tsne_max = TSNE(n_components=3, random_state=42)
-            tsne_max_red = tsne_max.fit_transform(maxes)
-
-            #put everything into the object  
-            # pca          
-            frame_features["pca_avg"] = {
-                "matrix": pca_avg,
-                "points": pca_avg_red
-            }
-            frame_features["pca_max"] = {
-                "matrix": pca_max,
-                "points": pca_max_red
-            }
-            #mds
-            frame_features["mds_avg"] = {
-                "matrix": mds_avg,
-                "points": mds_avg_red
-            }
-            frame_features["mds_max"] = {
-                "matrix": mds_max,
-                "points": mds_max_red
-            }
-            #tsne
-            frame_features["tsne_avg"] = {
-                "matrix": tsne_avg,
-                "points": tsne_avg_red
-            }
-            frame_features["tnse_max"] = {
-                "matrix": tsne_max,
-                "points": tsne_max_red
-            }
-
-            
+                    frame_features[frame_idx][object_id] = ret[0].cpu().numpy()
 
         
-
         return frame_features
 
     
