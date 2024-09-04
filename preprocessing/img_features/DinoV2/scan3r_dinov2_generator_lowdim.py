@@ -4,6 +4,7 @@ import os
 import os.path as osp
 import pickle
 import sys
+import h5py
 from tracemalloc import start
 import cv2
 from sklearn.decomposition import PCA
@@ -218,12 +219,33 @@ class Scan3rDinov2Generator():
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
         #access the precomputed boundingboxes
         # Load data from the pickle file
-        file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
-        with open(file_path, 'rb') as file:
-            object_info = pickle.load(file)
+        # file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
+        # with open(file_path, 'rb') as file:
+        #     object_info = pickle.load(file)
 
-        object_boxes = object_info[frame_number]
-        return object_boxes
+        # object_boxes = object_info[frame_number]
+        # return object_boxes
+
+        #load data from the h5 file
+        file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.h5".format(scan_id))
+        with h5py.File(file_path, 'r') as hdf_file:
+            if str(frame_number) in hdf_file:
+                bounding_boxes = []
+                frame_group = hdf_file[str(frame_number)]
+                
+                for bbox_name in frame_group.keys():
+                    bbox_group = frame_group[bbox_name]
+                    object_id = bbox_group.attrs['object_id']
+                    bbox = bbox_group['bbox'][:]  # Read as a NumPy array
+                    #create the same object as is used for the projection
+                    bounding_boxes.append({
+                        'object_id': object_id,
+                        'bbox': bbox.tolist() # Convert NumPy array to list)
+                      }  
+                    )
+                # Output the data for the specific frame
+                return bounding_boxes
+        
 
        
 

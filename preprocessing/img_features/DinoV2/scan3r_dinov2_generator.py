@@ -4,6 +4,7 @@ import os
 import os.path as osp
 import pickle
 import sys
+import h5py
 from tracemalloc import start
 import cv2
 from sklearn.utils import resample
@@ -215,12 +216,32 @@ class Scan3rDinov2Generator():
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
         #access the precomputed boundingboxes
         # Load data from the pickle file
-        file_path = osp.join(data_dir,"files/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
-        with open(file_path, 'rb') as file:
-            object_info = pickle.load(file)
+        # file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
+        # with open(file_path, 'rb') as file:
+        #     object_info = pickle.load(file)
 
-        object_boxes = object_info[frame_number]
-        return object_boxes
+        # object_boxes = object_info[frame_number]
+        # return object_boxes
+
+        #load data from the h5 file
+        file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.h5".format(scan_id))
+        with h5py.File(file_path, 'r') as hdf_file:
+            if str(frame_number) in hdf_file:
+                object_boxes = []
+                frame_group = hdf_file[str(frame_number)]
+                
+                for bbox_name in frame_group.keys():
+                    bbox_group = frame_group[bbox_name]
+                    object_id = bbox_group.attrs['object_id']
+                    bbox = bbox_group['bbox'][:]  # Read as a NumPy array
+                    #create the same object as is used for the projection
+                    object_boxes.append({
+                        'object_id': object_id,
+                        'bbox': bbox.tolist() # Convert NumPy array to list)
+                      }  
+                    )
+                # Output the data for the specific frame
+                return object_boxes
 
        
 
@@ -278,7 +299,8 @@ class Scan3rDinov2Generator():
         
     def generateFeaturesEachScan(self, scan_id):
         # Initialize a dictionary to store features per frame and object ID
-        frame_features = {}
+        features = {}
+        features_proj = {}
 
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
@@ -296,49 +318,88 @@ class Scan3rDinov2Generator():
                 img = Image.open(img_path).convert('RGB')
                 dat_dir = self.data_root_dir
 
-                # Load bounding boxes and patch IDs for the current frame
-                #path_proj_bboxes = osp.join(self.data_root_dir, "bboxes", scan_id, "gt_projection", f"frame-{frame_idx}.npy")
-                if self.proj:
-                    #get the projection boundingboxes
-                    bboxes = self.bounding_boxes_for_projection(dat_dir, scan_id, frame_idx)
-
+                #do the things for the dino part
                 if self.dino:
+                    """
+                    the final structure will be dict: frame_idx: object_id: the feature itself
+                    """
                     #get the boundingboxes for the seggmentation with dino data
                     bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
 
-                # Initialize dictionary for embeddings per object ID in the current frame
-                frame_features[frame_idx] = {}
+                    # Initialize dictionary for embeddings per object ID in the current frame
+                    features[frame_idx] = {}
 
-                for bbox in bboxes:
-                    object_id = bbox["object_id"]
+                    for bbox in bboxes:
+                        object_id = bbox["object_id"]
 
-                    # Extract patch from the bounding box
-                    min_col, min_row, width, height = bbox["bbox"]
-                    x1, y1, x2, y2 = int(min_col), int(min_row),int( min_col + width),int( min_row + height)
-                    h_new, w_new = (self.image_resize_h // 14) * 14, (self.image_resize_w // 14) * 14
-                    patch_crop = img.crop((x1, y1, x2, y2))
-                    patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
+                        # Extract patch from the bounding box
+                        min_col, min_row, width, height = bbox["bbox"]
+                        x1, y1, x2, y2 = int(min_col), int(min_row),int( min_col + width),int( min_row + height)
+                        h_new, w_new = (self.image_resize_h // 14) * 14, (self.image_resize_w // 14) * 14
+                        patch_crop = img.crop((x1, y1, x2, y2))
+                        patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
 
-                    # Optionally rotate patch if needed
-                    if self.img_rotate:
-                        patch = patch.transpose(Image.ROTATE_270)
+                        # Optionally rotate patch if needed
+                        if self.img_rotate:
+                            patch = patch.transpose(Image.ROTATE_270)
 
-                    # Convert patch to tensor and apply normalization
-                    patch_pt = self.base_tf(patch)
+                        # Convert patch to tensor and apply normalization
+                        patch_pt = self.base_tf(patch)
 
-                    # Prepare tensor for inference
-                    img_tensors_list = [patch_pt]
-                    imgs_tensor = torch.stack(img_tensors_list, dim=0).float().to(self.device)
+                        # Prepare tensor for inference
+                        img_tensors_list = [patch_pt]
+                        imgs_tensor = torch.stack(img_tensors_list, dim=0).float().to(self.device)
 
-                    # Perform inference to get the embedding for the patch
-                    with torch.no_grad():
-                        ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
+                        # Perform inference to get the embedding for the patch
+                        with torch.no_grad():
+                            ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
 
-                    # Store the embedding in the dictionary under the object ID
-                    frame_features[frame_idx][object_id] = ret[0].cpu().numpy()
+                        # Store the embedding in the dictionary under the object ID
+                        features[frame_idx][object_id] = ret[0].cpu().numpy()
+                
+
+                if self.proj:
+                    """
+                    the final structure will be dict:object_id: list of all the features corresponding to it
+                    """
+                    #get the boundingboxes for the seggmentation with dino data
+                    bboxes = self.bounding_boxes_for_projection(dat_dir,scan_id, frame_idx)
+
+                  
+                    for bbox in bboxes:
+                        object_id = bbox["object_id"]
+
+                        # Extract patch from the bounding box
+                        min_col, min_row, width, height = bbox["bbox"]
+                        x1, y1, x2, y2 = int(min_col), int(min_row),int( min_col + width),int( min_row + height)
+                        h_new, w_new = (self.image_resize_h // 14) * 14, (self.image_resize_w // 14) * 14
+                        patch_crop = img.crop((x1, y1, x2, y2))
+                        patch = patch_crop.resize((w_new, h_new), Image.BILINEAR)
+
+                        # Optionally rotate patch if needed
+                        if self.img_rotate:
+                            patch = patch.transpose(Image.ROTATE_270)
+
+                        # Convert patch to tensor and apply normalization
+                        patch_pt = self.base_tf(patch)
+
+                        # Prepare tensor for inference
+                        img_tensors_list = [patch_pt]
+                        imgs_tensor = torch.stack(img_tensors_list, dim=0).float().to(self.device)
+
+                        # Perform inference to get the embedding for the patch
+                        with torch.no_grad():
+                            ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
+                        
+                        #check if the id is already here
+                        if object_id not in features:
+                            features[object_id] = []
+                        # Store the embedding in the dictionary under the object ID
+                        #store the feature at the correct feature id
+                        features[object_id].append(ret[0].cpu().numpy())
 
         
-        return frame_features
+        return features
 
     
     
@@ -350,8 +411,81 @@ class Scan3rDinov2Generator():
             with torch.no_grad():
                 imgs_features = self.generateFeaturesEachScan(scan_id)
             img_num += len(imgs_features)
-            out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
-            common.write_pkl_data(imgs_features, out_file)
+            # out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
+            # common.write_pkl_data(imgs_features, out_file)
+
+            out_file = osp.join(self.out_dir, '{}.h5'.format(scan_id))
+            
+            #save for dino
+            if self.dino:
+                with h5py.File(out_file, 'w') as hdf_file:
+                    for frame_idx, objects in imgs_features.items():
+                        # Create a group for each frame_idx
+                        frame_group = hdf_file.create_group(str(frame_idx))
+                        
+                        for object_id, feature_vector in objects.items():
+                            # Convert object_id to string to use as a key
+                            object_key = str(object_id)
+                            
+                            # Save the feature vector as a dataset within the frame group
+                            frame_group.create_dataset(object_key, data=feature_vector, compression="gzip")
+
+                            # #read it into the normal structure
+                            # with h5py.File(out_file, 'r') as hdf_file:
+                            #     # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
+                            #     for frame_idx in hdf_file.keys():
+                            #         # Initialize a dictionary for each frame_idx
+                            #         features[int(frame_idx)] = {}
+                                    
+                            #         # Access the group corresponding to the current frame_idx
+                            #         frame_group = hdf_file[frame_idx]
+                                    
+                            #         # Iterate over each object_id within the current frame_idx group
+                            #         for object_key in frame_group.keys():
+                            #             # Convert object_key back to object_id if necessary
+                            #             object_id = int(object_key)
+                                        
+                            #             # Retrieve the feature vector from the dataset
+                            #             feature_vector = frame_group[object_key][:]
+                                        
+                            #             # Store the feature vector in the dictionary under the object_id
+                            #             features[int(frame_idx)][object_id] = feature_vector
+
+                            # # Now, you can access features[frame_idx][object_id] to get the feature vector
+
+
+
+
+            if self.proj:
+                with h5py.File(out_file, 'w') as hdf_file:
+                    for object_id, feature_list in imgs_features.items():
+                        # Convert object_id to string to use as a key (if necessary)
+                        object_key = str(object_id)
+
+                        # Stack the list of feature vectors into a numpy array for storage
+                        stacked_features = np.stack(feature_list, axis=0)
+
+                        # Save the stacked features as a dataset within the HDF5 file
+                        hdf_file.create_dataset(object_key, data=stacked_features, compression="gzip")
+
+
+                        #how to access it 
+                        # features = {}
+
+                        # # Open the HDF5 file for reading
+                        # with h5py.File(out_file, 'r') as hdf_file:
+                        #     # Iterate over each object ID (which corresponds to the dataset keys)
+                        #     for object_key in hdf_file.keys():
+                        #         # Read the dataset corresponding to the object_key
+                        #         stacked_features = hdf_file[object_key][:]
+                                
+                        #         # Convert the string key back to the original object_id if necessary
+                        #         object_id = int(object_key)
+                                
+                        #         # Store the feature list in the dictionary
+                        #         features[object_id] = [stacked_features[i] for i in range(stacked_features.shape[0])]
+
+                        # # Now, you can access features[obj_id] as a list of feature vectors
 
 
             

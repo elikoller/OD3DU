@@ -153,6 +153,8 @@ the first approach involved bounduingboxes  intersection for speedup but this wa
 
 ### generating a semantic segmentation for the input images
 the bigger goal is to generate dinov features for different objects in the input images and matching them to the objects in the scene. We dont want to train a network but use already pretrained ones. We also tried to divide inpout and gt into same size patches and compare these however the result was not good. Hence we look into a segmentation of the input image to get a better result. We use dinov2 transform2mask, a pretrained model on akd20 something, the segmentation masks are stored here "{Data_ROOT_DIR}/files/Features2D/dino_segmentation. 
+since the requirements are a bit tought to manage and use a different version of cuda than the rest, we used the dockercontainer from the issue section so get this part running. we store the info in a h5 file and it contains boundingboxes, obj_ids, masks and so on a patch level and boundingboxes
+
 ```bash
 bash scripts/dino_segmentation/semantic_segmentation_dino.sh
 ```
