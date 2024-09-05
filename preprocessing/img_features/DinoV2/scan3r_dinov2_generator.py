@@ -598,13 +598,13 @@ def main():
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
-    scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
-    #also generate for the dino_:segmentation boundingboxes
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
+    #also generate for the dino_:segmentation boundingboxes
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    scan3r_gcvit_generator.register_model()
+    scan3r_gcvit_generator.generateFeatures()
 
    
     

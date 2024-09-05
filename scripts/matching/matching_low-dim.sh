@@ -9,5 +9,5 @@ source $CONDA_BIN/activate new_dino_seg
 cd $VLSG_SPACE
 
 # generate patch-level features with Dinov2
-python ./evaluation/computation_lowdim.py \
-    --config ./evaluation/evaluator.yaml
+python ./matching/computation_lowdim.py \
+    --config ./matching/evaluator.yaml
