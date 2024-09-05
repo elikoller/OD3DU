@@ -379,7 +379,7 @@ class DinoSegmentor():
                     bbox_group.create_dataset('bbox', data=np.array(bbox['bbox']))
                     
                     # Store mask as a dataset (assuming component_mask is a numpy array)
-                    bbox_group.create_dataset('mask', data=bbox['mask'])
+                    bbox_group.create_dataset('mask', data=bbox['mask'], compression='gzip')
         
 
 
