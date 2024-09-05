@@ -56,8 +56,9 @@ These features are only computed to see how close they are to the scenegraph fea
 """
 class Scan3rDinov2Generator():
     def __init__(self, cfg, split, for_proj = False, for_dino_seg = False):
-        self.cfg = cfg
 
+        self.cfg = cfg
+        torch.cuda.empty_cache()
         #to know how to change the directory name based on the input images
         self.proj = for_proj
         self.dino = for_dino_seg
@@ -79,30 +80,7 @@ class Scan3rDinov2Generator():
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
         ## scans info
-        # self.rescan = cfg.data.rescan
-        # scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
-        # all_scan_data = common.load_json(scan_info_file)
-        # self.refscans2scans = {}
-        # self.scans2refscans = {}
-        # for scan_data in all_scan_data:
-        #     ref_scan_id = scan_data['reference']
-        #     self.refscans2scans[ref_scan_id] = [ref_scan_id]
-        #     self.scans2refscans[ref_scan_id] = ref_scan_id
-        #     if self.rescan:
-        #         for scan in scan_data['scans']:
-        #             self.refscans2scans[ref_scan_id].append(scan['reference'])
-        #             self.scans2refscans[scan['reference']] = ref_scan_id
-        # self.resplit = "resplit_" if cfg.data.resplit else ""
-        # if self.rescan:
-        #     ref_scans = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #     self.scan_ids = []
-        #     for ref_scan in ref_scans:
-        #         self.scan_ids += self.refscans2scans[ref_scan]
-        # else:
-        #     self.scan_ids = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-
-
-        """"""
+    
         self.rescan = cfg.data.rescan
         scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
         all_scan_data = common.load_json(scan_info_file)
@@ -121,23 +99,55 @@ class Scan3rDinov2Generator():
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
         ## get all scans within the split(ref_scan + rescan)
+        """
+        since the computations we are doing are happening one after each other we do the following
+        """
+        #check if the files already exist
+        #path to check:
+        path_avg = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "avg")
+        path_max = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "max")
+        path_median = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "median")
+        for scan_id in ref_scans_split:
+            # Construct the filename
+            filename = f"{scan_id}.h5"
+            
+            # Construct the full path
+        
+
+            # Check if the file exists
+            file_avg = os.path.isfile(osp.join(path_avg,filename))
+            file_max = os.path.isfile(osp.join(path_max,filename))
+            file_media = os.path.isfile(osp.join(path_median,filename))
+            #files already exist
+            if file_avg and file_max and file_media:
+                ref_scans_split.remove(scan_id)
+
+
+
+
         for ref_scan in ref_scans_split:
-            self.all_scans_split += self.refscans2scans[ref_scan]
-        if self.rescan:
-            self.scan_ids = self.all_scans_split
-        else:
-            self.scan_ids = ref_scans_split
+            #self.all_scans_split.append(ref_scan)
+            # Check and add one rescan for the current reference scan
+            rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
+            if rescans:
+                # Add the first rescan (or any specific rescan logic)
+                self.all_scans_split.append(rescans[0])
 
 
         """
         differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
         """
-        if self.for_proj:
+
+        
+
+
+        if self.proj:
             self.scan_ids = ref_scans_split #only take the reference scans
         
-        if self.for_dino_seg:
-            self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]#only take the rescans
-
+        if self.dino:
+            self.scan_ids = self.all_scans_split
+            #self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]#only take the rescans
+            
 
 
         #print("scan ids", len(self.scan_ids))
@@ -186,7 +196,9 @@ class Scan3rDinov2Generator():
             self.out_dir_max = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
             self.out_dir_median = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
 
-        common.ensure_dir(self.out_dir)
+        common.ensure_dir(self.out_dir_avg)
+        common.ensure_dir(self.out_dir_max)
+        common.ensure_dir(self.out_dir_median)
         
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
@@ -590,22 +602,11 @@ def main():
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
     #also generate for the dino_:segmentation boundingboxes
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
-    scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    # scan3r_gcvit_generator.register_model()
+    # scan3r_gcvit_generator.generateFeatures()
 
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val', for_proj= True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'val', for_dino_seg= True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'test', for_proj = True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'test', for_dino_seg = True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
+   
     
 if __name__ == "__main__":
     main()
