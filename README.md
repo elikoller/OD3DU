@@ -108,6 +108,8 @@ for folder in scenes/*/; do
 
     (cd "$folder" && unzip -o '*.zip' -d sequence && rm -f *.zip)
     
+
+go to the scenes directory and type in the following find . -name '*.zip' -execdir unzip -o '{}' -d sequence \; -execdir rm -f '{}' \;
 done
 
 
@@ -172,6 +174,11 @@ This will create patch-level features for query images and save in "{Data_ROOT_D
 
 
 
+### Computation of best parameters
+To generate the tables with the accuracies, use : 
+```bash
+bash scripts/matching/computation.sh
+```
 
 
 ## BibTeX :pray:

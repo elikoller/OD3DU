@@ -47,9 +47,9 @@ class Evaluator():
         self.data_root_dir = cfg.data.root_dir
         scan_dirname = 'scan' 
         self.scans_dir = osp.join(cfg.data.root_dir, scan_dirname)
-        self.scans_files_dir = osp.join(self.scans_dir, 'files')
+        self.scans_files_dir = osp.join(self.data_root_dir, 'files')
         self.scans_files_dir_mode = osp.join(self.scans_files_dir)
-        self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
+        self.scans_scenes_dir = osp.join(self.data_root_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
         #model info
         self.model_name = cfg.model.name
@@ -93,7 +93,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[:123]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -114,13 +114,7 @@ class Evaluator():
 
 
 
-        #print("scan ids", len(self.scan_ids))
-        ## images info
-        self.image_paths = {}
-        for scan_id in self.scan_ids:
-            self.image_paths[scan_id] = self.load_frame_paths(self.scans_dir, scan_id)
-
-      
+    
         #output path for components
         self.out_dir = osp.join(self.data_root_dir, "Results" )
         common.ensure_dir(self.out_dir)
@@ -128,7 +122,7 @@ class Evaluator():
      
     def load_frame_idxs(self,data_dir, scan_id, skip=None):
       
-        frames_paths = glob(osp.join(data_dir, scan_id, 'sequence', '*.jpg'))
+        frames_paths = glob.glob(osp.join(data_dir, scan_id, 'sequence', '*.jpg'))
         frame_names = [osp.basename(frame_path) for frame_path in frames_paths]
         frame_idxs = [frame_name.split('.')[0].split('-')[-1] for frame_name in frame_names]
         frame_idxs.sort()
@@ -141,11 +135,11 @@ class Evaluator():
     
 
     
-    def get_majorities(self, distanc, obj_ids, k , th):
+    def get_majorities(self, distanc, obj_ids ,frame_ids, k , th):
         #make te majority voting
-        majorities = []
+        majorities = {}
         unique_new_obj = -1
-        for i, (dist , ids) in enumerate(zip(distanc,obj_ids)):
+        for i, (dist , ids, frame_id) in enumerate(zip(distanc,obj_ids, frame_ids)):
             closest_dist = dist[:k]
             closest_ids = ids[:k]
 
@@ -158,10 +152,10 @@ class Evaluator():
             #thresthold the average majority of the distances, it it is above the threshold, give the id -1 which represents an unseen obj
             if average_distance < th:
                 #too far away
-                majorities.append(unique_new_obj)
+                majorities[frame_id] =unique_new_obj
                 unique_new_obj = unique_new_obj -1
             else:
-                majorities.append(most_common_class)
+                majorities[frame_id]= most_common_class
 
         return majorities
 
@@ -172,9 +166,9 @@ class Evaluator():
         for seg_region in segmentation:
             mask_id = seg_region["object_id"]
             #find the index of mask_id in frame_obj_ids
-            index = np.where(frame_obj_ids == mask_id)[0]
+            #index = np.where(frame_obj_ids == mask_id)[0]
             #get to what the region mapped in the majorities
-            matched_id = majorities[index]
+            matched_id = majorities[mask_id]
             #print("matched id ", matched_id)
             mask = seg_region["mask"]
             boolean_mask = mask == 225
@@ -245,54 +239,110 @@ class Evaluator():
         return mean_percentage
     
 
+    def compute_patch_normalized_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+        # Flatten matrices to iterate over each element
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+        
+        #initialize the result
+        percentage = []
+    
+        #iterate through everything
+
+        for idx in range(len(flat_gt)):
+            #since we can only compare to gt_patches skip everything that has gt_id == 0 == nothing
+            if flat_gt[idx] != 0:
+                #object ids are the same
+                if flat_gt[idx] == flat_comp[idx]:
+                    percentage.append(1)
+                #the object id is actually new and was recognized as new
+                elif (flat_gt[idx] in new_objects) and  (flat_comp[idx] < 0):
+                    percentage.append(1)
+                else:
+                    percentage.append(0)
+
+        percentage = np.array(percentage)
+        mean_percentage = np.mean(percentage)
+        return mean_percentage
+
+
+
+
+
+
+
     def compute_obj_metric(self, gt_patches,computed_patches, new_objects):
         #make sure we dont do something dumm lol
         assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
 
-
-        # Flatten matrices to iterate over each element
+        #flatten the matricies
         flat_gt = gt_patches.flatten()
         flat_comp = computed_patches.flatten()
 
-        #look at obj_ids > 0  so the ones which were present in the reference scene
-        positive_mask = flat_gt > 0
-        positive_gt = flat_gt[positive_mask]
-        positive_comp = flat_comp[positive_mask]
+        #look at the not new objects
+        #make a mask for not new objects and not id 0 for the gt
+        mask_gt = (~np.isin(flat_gt, new_objects)) & (flat_gt > 0)
+        #access the not new obj in the comp
+        mask_comp = flat_comp > 0
+        #combine the masks to get the idxs at which both are true
+        combined_mask = mask_gt & mask_comp
 
-        #how many unique ids are in the gt
-        total_positiv_unique_gt = len(np.unique(positive_gt))
+        filtered_gt = flat_gt[combined_mask]
+        filtered_comp = flat_comp[combined_mask]
 
-        #get the ones which are correctly assinged
-        comparison_mask = positive_gt == positive_comp
+        #check if the objects overlap at some point
+        matched_comp = flat_comp[filtered_comp == filtered_gt]
 
-        matching = positive_gt[comparison_mask]
-        #how many unique ids were correctly matched
-        total_positive_unique_comp = len(np.unique(matching))
-
+        #computed not new objects
+        total_unique_comp = len(np.unique(matched_comp))
 
 
-        #look at the newly found objects now
-        #in the computation with id < 0
-        negative_mask = flat_comp < 0
-        new_obj_comp = flat_comp[negative_mask]
-        #in the gt
-        new_objects_mask = np.isin(positive_gt, list(new_objects))
-        new_obj_gt = flat_gt[new_objects_mask]
+        # # Flatten matrices to iterate over each element
+        # flat_gt = gt_patches.flatten()
+        # flat_comp = computed_patches.flatten()
 
-        comparison_mask_new = (new_obj_gt > 0) & (new_obj_comp < 0)
-        matching_new = new_obj_comp[comparison_mask_new]
-        #how many new objects were matched
-        total_new_unique_comp = np.unique(matching_new)
-        total_new_unique_gt = len(new_objects)
+        # #look at obj_ids > 0  so the ones which were present in the reference scene
+        # positive_mask_gt = flat_gt > 0
+        # positive_gt = flat_gt[positive_mask_gt]
+        
+        # positive_comp = flat_comp[positive_mask_gt]
 
-        #if more new objects than in the gt set to gt number
-        if len(total_new_unique_comp) > len(total_new_unique_gt):
-            total_new_unique_comp = len(total_new_unique_gt)
+        # #how many unique ids are in the gt 
+        # total_positiv_unique_gt = len(np.unique(positive_gt))
+
+        # #get the ones which are correctly assinged
+        # comparison_mask = positive_gt == positive_comp
+
+        # matching = positive_gt[comparison_mask]
+        # #how many unique ids were correctly matched
+        # total_positive_unique_comp = len(np.unique(matching))
+
+
+
+        # #look at the newly found objects now
+        # #in the computation with id < 0
+        # negative_mask = flat_comp < 0
+        # new_obj_comp = flat_comp[negative_mask]
+        # #in the gt
+        # new_objects_mask = np.isin(positive_gt, list(new_objects))
+        # new_obj_gt = flat_gt[new_objects_mask]
+
+        # comparison_mask_new = (new_obj_gt > 0) & (new_obj_comp < 0)
+        # matching_new = new_obj_comp[comparison_mask_new]
+        # #how many new objects were matched
+        # total_new_unique_comp = np.unique(matching_new)
+        # total_new_unique_gt = len(new_objects)
+
+        # #if more new objects than in the gt set to gt number
+        # if len(total_new_unique_comp) > len(total_new_unique_gt):
+        #     total_new_unique_comp = len(total_new_unique_gt)
 
         
-        #put everything together
+        # #put everything together
 
-        return (total_positive_unique_comp + total_new_unique_comp)/(total_positiv_unique_gt + total_new_unique_gt)
+        # return (total_positive_unique_comp + total_new_unique_comp)/(total_positiv_unique_gt + total_new_unique_gt)
 
 
 
@@ -302,7 +352,7 @@ class Evaluator():
 
     
     #for a given scene get the colours of the differnt object_ids
-    def get_present_obj_ids(data_dir,scan_id):
+    def get_present_obj_ids(self, data_dir,scan_id):
         #access the mesh file to get the colour of the ids
         mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.annotated.v2.ply")
         ply_data = plyfile.PlyData.read(mesh_file)
@@ -349,7 +399,7 @@ class Evaluator():
                 object_id = object_key
                 
                 # Store the feature list in the dictionary
-                features[object_id] = [stacked_features[i] for i in range(stacked_features.shape[0])]
+                features[int(object_id)] = [stacked_features[i] for i in range(stacked_features.shape[0])]
 
         return features
     
@@ -375,14 +425,14 @@ class Evaluator():
                     feature_vector = frame_group[object_key][:]
                     
                     # Store the feature vector in the dictionary under the object_id
-                    features[frame_idx][object_id] = feature_vector
+                    features[frame_idx][int(object_id)] = feature_vector
 
         return features
 
     #returns featuer in the form of features: frame: list of {objext_id, bbox, mask} objects
-    def read_segmentation_data(segmentation_path):
+    def read_segmentation_data(self,segmentation_path):
         features = {}
-        with h5py.File(segmentation_path, 'w') as hdf_file:
+        with h5py.File(segmentation_path, 'r') as hdf_file:
              for frame_idx in hdf_file.keys():
                 #init boxlist for curr frame
                 bounding_boxes = []
@@ -412,6 +462,7 @@ class Evaluator():
                 
                 # stor it to the corresponding frame
                 features[frame_idx] = bounding_boxes
+        return features
 
 
         
@@ -419,6 +470,7 @@ class Evaluator():
         #prepare the matricies for the 4 different metrics
         all_cosine_obj_metric = []
         all_cosine_patch_metric = []
+        all_cosine_patch_normalized_metric = []
      
 
         #loop over each frame and append the resultsto the total matricies
@@ -463,7 +515,7 @@ class Evaluator():
 
 
             #access the segmentation of the scan_id
-            segmentation_info_path = osp.join("/media/ekoller/T7/files/Segmentation/DinoV2/objects", scan_id + ".h5")
+            segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
             segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
 
@@ -473,7 +525,7 @@ class Evaluator():
             #find out which objects have not been present in the reference scene ( not only frame!)
             present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
             present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-            new_objects = present_obj_scan - present_obj_reference
+            new_objects = list(set(present_obj_scan) - set(present_obj_reference))
     
 
             #now the frame
@@ -492,6 +544,7 @@ class Evaluator():
                     #initialize the resultmatrix for this frame
                     cosine_obj_metric = np.zeros((ths_len,k_means_len))
                     cosine_patch_metric = np.zeros((ths_len,k_means_len))
+                    cosine_patch_normalized_metric = np.zeros((ths_len,k_means_len))
 
                     #initialize the distances
                     cosine_distanc = []
@@ -526,17 +579,19 @@ class Evaluator():
                     for t_idx, th in enumerate (self.ths):
                         for k_idx, k in enumerate (self.k_means):
                             # get the majority vote of the k closest points
-                            cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, k, th)
-
+                            cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
+                            # print("majorities", cosine_majorities)
+                            # print("segmentation data", segmentation_data[frame_idx])
+                            # print("frame obj ids", frame_obj_ids)
                             #translate the matched object ids to pixellevel of the frame
                             cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],frame_obj_ids,cosine_majorities)
                             
                             #quantize to patchlevel of to be comparable to gt
                             cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
-                           
+
 
                             #access the ground truth patches for this frame
-                            gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
+                            gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
 
                             with open(gt_input_patchwise_path, 'rb') as file:
                                 gt_input_patchwise = pickle.load(file)
@@ -544,9 +599,9 @@ class Evaluator():
                             
                             #finally compute the accuracies: based on area and object ids and fill into the matrix
                             #for cosine
-                            cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise,cosine_patch_level, new_objects)
-                            cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise,cosine_patch_level, new_objects)
-
+                            #cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
+                            cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
+                            #cosine_patch_normalized_metric[t_idx[k_idx]] = self.compute_patch_normalized_metric(gt_input_patchwise,cosine_patch_level, new_objects)
                           
 
 
@@ -554,22 +609,25 @@ class Evaluator():
                 #append the matrix to the other matricies
                 all_cosine_obj_metric.append(cosine_obj_metric)  
                 all_cosine_patch_metric.append(cosine_patch_metric)
+                all_cosine_patch_normalized_metric.append(cosine_patch_normalized_metric)
                
 
 
         #we want the result over all scenes
         mean_cosine_obj_metric = np.mean(all_cosine_obj_metric)
         mean_cosine_patch_metric = np.mean(all_cosine_patch_metric)
+        mean_cosine_patch_normalized_metric = np.mean(all_cosine_patch_normalized_metric)
        
 
         #create sesult dict
         result = {"cosine_obj_metric": mean_cosine_obj_metric,
-                  "cosine_patch_metric": mean_cosine_patch_metric,
-                  }
+                  "cosine_patch_metric": mean_cosine_patch_metric
+                }
+                  
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "not_padded.pkl")
+        result_file_path = osp.join(result_dir,  "results_not_padded.pkl")
         common.write_pkl_data(result_file_path, result)
                     
                 
@@ -597,8 +655,11 @@ def main():
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
     evaluate = Evaluator(cfg, 'train')
+    print("start avg computation")
     evaluate.compute("avg")
+    print("start max computation")
     evaluate.compute("max")
+    print("start median computation")
     evaluate.compute("median")
    
   

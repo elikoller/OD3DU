@@ -123,7 +123,7 @@ class Evaluator():
 
       
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "files", "Matches" )
+        self.out_dir = "/media/ekoller/T7/Matches" 
         common.ensure_dir(self.out_dir)
 
      
@@ -249,7 +249,7 @@ class Evaluator():
     #returns featuer in the form of features: frame: list of {objext_id, bbox, mask} objects
     def read_segmentation_data(segmentation_path):
         features = {}
-        with h5py.File(segmentation_path, 'w') as hdf_file:
+        with h5py.File(segmentation_path, 'r') as hdf_file:
              for frame_idx in hdf_file.keys():
                 #init boxlist for curr frame
                 bounding_boxes = []
