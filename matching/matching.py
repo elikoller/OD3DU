@@ -279,7 +279,7 @@ class Evaluator():
                 
                 # stor it to the corresponding frame
                 features[frame_idx] = bounding_boxes
-
+        return features
 
         
     def compute(self):
