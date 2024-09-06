@@ -277,14 +277,15 @@ class Evaluator():
         #flatten the matricies
         flat_gt = gt_patches.flatten()
         flat_comp = computed_patches.flatten()
-
+        print("shapes gt and flat comp", flat_gt.shape , "  ", flat_comp.shape)
         #new objects
 
         new_mask_gt = (np.isin(flat_gt, new_objects)) & (flat_gt > 0)
         new_mask_comp =  flat_comp < 0
-
+        print("shape of masks 1 ", new_mask_gt.shape, " ", new_mask_comp.shape)
         new_combined = new_mask_gt & new_mask_comp
         
+        print("shape combined mask ", new_combined.shape)
         new_filtered_comp = flat_comp[new_combined]
         
         
@@ -297,86 +298,47 @@ class Evaluator():
             total_unique_new_comp = total_unique_new_gt
 
         return float(total_unique_new_comp) / total_unique_new_gt
+        
 
 
     def compute_obj_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        
+
         #make sure we dont do something dumm lol
         assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
 
         #flatten the matricies
         flat_gt = gt_patches.flatten()
         flat_comp = computed_patches.flatten()
+        print("shapes gt and flat comp", flat_gt.shape , "  ", flat_comp.shape)
 
         #look at the not new objects
         #make a mask for not new objects and not id 0 for the gt
         mask_gt = (~np.isin(flat_gt, new_objects)) & (flat_gt > 0)
         #access the not new obj in the comp
         mask_comp = flat_comp > 0
-        #combine the masks to get the idxs at which both are true
+        print("shape of masks 1 ", mask_gt.shape, " ", mask_comp.shape)
+        #combine the masks to get the idxs at which both are true so for both we are looking at existing objects
         combined_mask = mask_gt & mask_comp
-
-        filtered_gt = flat_gt[combined_mask]
-        filtered_comp = flat_comp[combined_mask]
-
+        print("shape combined mask ", combined_mask.shape)
+        #the elements of the patches must have the same id
+        same_mask = combined_mask & (flat_gt == flat_comp) 
         #check if the objects overlap at some point
-        matched_comp = flat_comp[filtered_comp == filtered_gt]
+        print("size same mask ", same_mask.shape)
+        matched_comp = flat_comp[same_mask]
 
         #computed not new objects
-        total_unique_comp = (np.unique(matched_comp))
-        total_unique_gt = float(len(np.unique(flat_gt[mask_gt])))
+        total_unique_comp = len((np.unique(matched_comp))) #unique ids we computed at the correct location
+        total_unique_gt = float(len(np.unique(flat_gt[mask_gt]))) #how many unique objects ther would have been
 
         return float(total_unique_comp) /total_unique_gt
         
-        # # Flatten matrices to iterate over each element
-        # flat_gt = gt_patches.flatten()
-        # flat_comp = computed_patches.flatten()
-
-        # #look at obj_ids > 0  so the ones which were present in the reference scene
-        # positive_mask_gt = flat_gt > 0
-        # positive_gt = flat_gt[positive_mask_gt]
-        
-        # positive_comp = flat_comp[positive_mask_gt]
-
-        # #how many unique ids are in the gt 
-        # total_positiv_unique_gt = len(np.unique(positive_gt))
-
-        # #get the ones which are correctly assinged
-        # comparison_mask = positive_gt == positive_comp
-
-        # matching = positive_gt[comparison_mask]
-        # #how many unique ids were correctly matched
-        # total_positive_unique_comp = len(np.unique(matching))
-
-
-
-        # #look at the newly found objects now
-        # #in the computation with id < 0
-        # negative_mask = flat_comp < 0
-        # new_obj_comp = flat_comp[negative_mask]
-        # #in the gt
-        # new_objects_mask = np.isin(positive_gt, list(new_objects))
-        # new_obj_gt = flat_gt[new_objects_mask]
-
-        # comparison_mask_new = (new_obj_gt > 0) & (new_obj_comp < 0)
-        # matching_new = new_obj_comp[comparison_mask_new]
-        # #how many new objects were matched
-        # total_new_unique_comp = np.unique(matching_new)
-        # total_new_unique_gt = len(new_objects)
-
-        # #if more new objects than in the gt set to gt number
-        # if len(total_new_unique_comp) > len(total_new_unique_gt):
-        #     total_new_unique_comp = len(total_new_unique_gt)
+      
 
         
-        # #put everything together
-
-        # return (total_positive_unique_comp + total_new_unique_comp)/(total_positiv_unique_gt + total_new_unique_gt)
 
 
-
-    
-
-         
 
     
     #for a given scene get the colours of the differnt object_ids
@@ -629,8 +591,8 @@ class Evaluator():
                             
                             #finally compute the accuracies: based on area and object ids and fill into the matrix
                             #for cosine
-                            cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
-                            if len(new_objects > 0):
+                            #cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
+                            if len(new_objects) > 0:
                                 cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
                             cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
                             #cosine_patch_normalized_metric[t_idx[k_idx]] = self.compute_patch_normalized_metric(gt_input_patchwise,cosine_patch_level, new_objects)

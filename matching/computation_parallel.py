@@ -289,20 +289,21 @@ class Evaluator():
         #access the not new obj in the comp
         mask_comp = flat_comp > 0
         print("shape of masks 1 ", mask_gt.shape, " ", mask_comp.shape)
-        #combine the masks to get the idxs at which both are true
+        #combine the masks to get the idxs at which both are true so for both we are looking at existing objects
         combined_mask = mask_gt & mask_comp
         print("shape combined mask ", combined_mask.shape)
-        filtered_gt = flat_gt[combined_mask]
-        filtered_comp = flat_comp[combined_mask]
-
+        #the elements of the patches must have the same id
+        same_mask = combined_mask & (flat_gt == flat_comp) 
         #check if the objects overlap at some point
-        matched_comp = flat_comp[filtered_comp == filtered_gt]
+        print("size same mask ", same_mask.shape)
+        matched_comp = flat_comp[same_mask]
 
         #computed not new objects
-        total_unique_comp = (np.unique(matched_comp))
-        total_unique_gt = float(len(np.unique(flat_gt[mask_gt])))
+        total_unique_comp = len((np.unique(matched_comp))) #unique ids we computed at the correct location
+        total_unique_gt = float(len(np.unique(flat_gt[mask_gt]))) #how many unique objects ther would have been
 
         return float(total_unique_comp) /total_unique_gt
+        
         
       
 
@@ -553,9 +554,9 @@ class Evaluator():
                         
                         #finally compute the accuracies: based on area and object ids and fill into the matrix
                         #for cosine
-                        #cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
-                        #if len(new_objects > 0):
-                            #cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
+                        cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
+                        if len(new_objects) > 0:
+                            cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
 
                         cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_input_patchwise[frame_idx],cosine_patch_level, new_objects)
 
@@ -574,10 +575,10 @@ class Evaluator():
        
      
 
-        
+        workers = 4
         
         # parallelize the computations
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
             futures = {executor.submit(self.compute_scan, scan_id, mode): scan_id for scan_id in self.scan_ids}
             
             # Use tqdm for progress bar, iterating as tasks are completed
