@@ -308,7 +308,8 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
             all_scans_split.append(rescans[0])
     
     all_scans_split =list(ref_scans_split) + list(all_scans_split)
-    print( len(all_scans_split))
+    
+    print(list(all_scans_split))
     
     """
     elenas change

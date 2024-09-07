@@ -29,6 +29,7 @@ import traceback
 #import joblib
 #import wandb
 import argparse
+from pathlib import Path
 from PIL import Image
 from tqdm.auto import tqdm
 from typing import Literal, Tuple, List, Union
@@ -116,8 +117,7 @@ class Scan3rDinov2Generator():
         differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
         """
 
-        
-
+    
 
         if self.proj:
             self.scan_ids = ref_scans_split #only take the reference scans
@@ -177,6 +177,15 @@ class Scan3rDinov2Generator():
         common.ensure_dir(self.out_dir_avg)
         common.ensure_dir(self.out_dir_max)
         common.ensure_dir(self.out_dir_median)
+
+         #since we stopped the computation look which ones are not done yet
+        if(self.dino):
+            for done_scan in self.all_scans_split:   
+                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
+                path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
+                path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
+                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
+                    self.all_scans_split.remove(done_scan)
         
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
