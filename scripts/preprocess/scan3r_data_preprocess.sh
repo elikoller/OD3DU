@@ -12,9 +12,7 @@ cd $VLSG_SPACE
 python ./preprocessing/scan3r/preprocess_scan3r.py \
     --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
     --split train
-python ./preprocessing/scan3r/preprocess_scan3r.py \
-    --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
-    --split val
-python ./preprocessing/scan3r/preprocess_scan3r.py \
-    --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
-    --split test
+
+
+
+

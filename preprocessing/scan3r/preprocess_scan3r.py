@@ -40,7 +40,7 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     ply_data = None
 
     # Modified by Elena, goal: overwrite the current version eben if there exists already the file
-    if(True):  #  changed that to overwrite existing data change it back to  the old version which is (osp.isfile(ply_data_npy_file)):
+    if(osp.isfile(ply_data_npy_file)):  #  changed that to overwrite existing data change it back to  the old version which is (osp.isfile(ply_data_npy_file)):
         ply_data = np.load(ply_data_npy_file)
     else:
         # Load scene pcl
@@ -269,14 +269,53 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
     scans_files_dir = osp.join(scans_dir, 'files')
     all_scan_data = common.load_json(osp.join(scans_files_dir, '3RScan.json'))
     # get rescans
+    # for scan_data in all_scan_data:
+    #     ref_scan_id = scan_data['reference']
+    #     if ref_scan_id in subscan_ids_generated:
+    #         rescan_ids = [scan['reference'] for scan in scan_data['scans']]
+    #         subRescan_ids_generated += rescan_ids + [ref_scan_id]
+    # subscan_ids_generated = subRescan_ids_generated
+
+    """
+    elenas change
+    """
+
+
+    rescan = cfg.data.rescan
+    scan_info_file = osp.join(scans_files_dir, '3RScan.json')
+    all_scan_data = common.load_json(scan_info_file)
+    refscans2scans = {}
+    scans2refscans = {}
+    all_scans_split = []
     for scan_data in all_scan_data:
         ref_scan_id = scan_data['reference']
-        if ref_scan_id in subscan_ids_generated:
-            rescan_ids = [scan['reference'] for scan in scan_data['scans']]
-            subRescan_ids_generated += rescan_ids + [ref_scan_id]
-    subscan_ids_generated = subRescan_ids_generated
+        refscans2scans[ref_scan_id] = [ref_scan_id]
+        scans2refscans[ref_scan_id] = ref_scan_id
+        for scan in scan_data['scans']:
+            refscans2scans[ref_scan_id].append(scan['reference'])
+            scans2refscans[scan['reference']] = ref_scan_id
+    resplit = "resplit_" if cfg.data.resplit else ""
+    ref_scans_split = list(np.genfromtxt(osp.join(osp.join(data_dir, 'files'), '{}_{}scans.txt'.format(split, resplit)), dtype=str))
+    #print("ref scan split", ref_scans_split)
+    #we want it for both scan and rescan
+    
+    for ref_scan in ref_scans_split:
+        #self.all_scans_split.append(ref_scan)
+        # Check and add one rescan for the current reference scan
+        rescans = [scan for scan in refscans2scans[ref_scan] if scan != ref_scan]
+        if rescans:
+            # Add the first rescan (or any specific rescan logic)
+            all_scans_split.append(rescans[0])
+    
+    all_scans_split =list(ref_scans_split) + list(all_scans_split)
+    print( len(all_scans_split))
+    
+    """
+    elenas change
+    """
 
-    for subscan_id in tqdm(subscan_ids_generated[:]):
+
+    for subscan_id in tqdm(all_scans_split[:]):
         obj_data = [obj_data for obj_data in obj_json if obj_data['scan'] == subscan_id][0]
         rel_data = [rel_data for rel_data in rel_json if rel_data['scan'] == subscan_id][0]
         data_dict = process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms=rel_transforms)

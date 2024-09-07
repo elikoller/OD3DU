@@ -149,9 +149,7 @@ if __name__ == '__main__':
     Data_ROOT_DIR = os.getenv("Scan3R_ROOT_DIR")
     # note that the original validation set includes the resplited val and test set
     cfg = update_config(config, cfg_file, ensure_dir = False)
-    # split = "validation"
-    # scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg)
-    # scan3r_img_projector.annotate_scans()
+   
     split = "train"
     scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg, resplit_files= True)
     scan3r_img_projector.annotate_scans()

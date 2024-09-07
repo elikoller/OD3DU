@@ -103,7 +103,7 @@ class Scan3rDinov2Generator():
 
 
 
-        for ref_scan in ref_scans_split[123:]:
+        for ref_scan in ref_scans_split:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -120,7 +120,7 @@ class Scan3rDinov2Generator():
 
 
         if self.proj:
-            self.scan_ids = ref_scans_split[123:] #only take the reference scans
+            self.scan_ids = ref_scans_split #only take the reference scans
         
         if self.dino:
             self.scan_ids = self.all_scans_split

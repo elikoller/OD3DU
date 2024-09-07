@@ -13,6 +13,7 @@ data :
   label_file_name : labels.instances.align.annotated.v2.ply
   pred_subfix     : inseg.ply
   resplit: True
+  rescan: True
 
 preprocess :
   pc_resolutions      : [64, 128, 256, 512]
