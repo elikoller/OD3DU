@@ -358,7 +358,7 @@ class Evaluator():
                         faiss.normalize_L2(query_vector)
 
                         #get distance and ids for the clos
-                        distances, indices = index.search(query_vector,max(self.k_means)) #get the max of k then we already know which ones are closer :)
+                        distances, indices = index.search(query_vector,self.k_means) #get the max of k then we already know which ones are closer :)
 
                         # get the object ids of the closest reference vectors and the distances
                         nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
@@ -379,11 +379,6 @@ class Evaluator():
                     all_matches[frame_idx] = matches
                     
                     
-
-                    
-        
-                    
-        
 
   
         #save the file in the results direcrtory

@@ -9,5 +9,5 @@ source $CONDA_BIN/activate BT
 cd $VLSG_SPACE
 
 # generate patch-level features with Dinov2
-python ./matching/computation_statistics.py \
-    --config ./matching/evaluator.yaml
+python ./matching/matching_parallel.py \
+    --config ./matching/matching_param.yaml

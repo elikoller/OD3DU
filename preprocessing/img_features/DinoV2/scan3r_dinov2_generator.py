@@ -99,33 +99,11 @@ class Scan3rDinov2Generator():
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
         ## get all scans within the split(ref_scan + rescan)
-        """
-        since the computations we are doing are happening one after each other we do the following
-        """
-        #check if the files already exist
-        #path to check:
-        path_avg = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "avg")
-        path_max = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "max")
-        path_median = osp.osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_32_18", "median")
-        for scan_id in ref_scans_split:
-            # Construct the filename
-            filename = f"{scan_id}.h5"
-            
-            # Construct the full path
         
 
-            # Check if the file exists
-            file_avg = os.path.isfile(osp.join(path_avg,filename))
-            file_max = os.path.isfile(osp.join(path_max,filename))
-            file_media = os.path.isfile(osp.join(path_median,filename))
-            #files already exist
-            if file_avg and file_max and file_media:
-                ref_scans_split.remove(scan_id)
 
 
-
-
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[123:]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -142,7 +120,7 @@ class Scan3rDinov2Generator():
 
 
         if self.proj:
-            self.scan_ids = ref_scans_split #only take the reference scans
+            self.scan_ids = ref_scans_split[123:] #only take the reference scans
         
         if self.dino:
             self.scan_ids = self.all_scans_split

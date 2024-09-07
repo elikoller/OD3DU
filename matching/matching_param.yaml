@@ -13,10 +13,10 @@ data :
     patch_h: 18
   inference_step: 100
 
-  model:
-    name: DinoV2
+model:
+  name: DinoV2
 
-  parameters: 
+parameters: 
     k_means: [1]
     threshold: [0]
     mode: ""
