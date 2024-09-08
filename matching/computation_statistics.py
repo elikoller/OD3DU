@@ -95,7 +95,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[:100]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -210,8 +210,7 @@ class Evaluator():
 
         return patchwise_id
 
-
-
+  
 
     def compute_patch_metric(self, gt_patches,computed_patches, new_objects):
         #make sure we dont do something dumm lol
@@ -499,94 +498,94 @@ class Evaluator():
             end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
             frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
 
-            with tqdm(total=len(frame_idxs_sublist)) as frame_pbar:
-                for frame_idx in frame_idxs_sublist:
-                    #initialze the matricies we will fill
-                    #get the lengths of the parameters
-                    ths_len = len(self.ths)
-                    k_means_len = len(self.k_means)
+        
+            for frame_idx in frame_idxs_sublist:
+                #initialze the matricies we will fill
+                #get the lengths of the parameters
+                ths_len = len(self.ths)
+                k_means_len = len(self.k_means)
 
-                    #initialize the resultmatrix for this frame
-                    cosine_obj_metric = np.zeros((ths_len,k_means_len))
-                    cosine__new_obj_metric = np.zeros((ths_len,k_means_len))
-                    cosine_patch_metric = np.zeros((ths_len,k_means_len))
-                    
+                #initialize the resultmatrix for this frame
+                cosine_obj_metric = np.zeros((ths_len,k_means_len))
+                cosine__new_obj_metric = np.zeros((ths_len,k_means_len))
+                cosine_patch_metric = np.zeros((ths_len,k_means_len))
+                
 
-                    #initialize the distances
-                    cosine_distanc = []
-                    cosine_obj_ids = []
+                #initialize the distances
+                cosine_distanc = []
+                cosine_obj_ids = []
 
-                    #keep track of the order of the scan_frame_ids
-                    frame_obj_ids = []
-                    
-                    #iterate through the objects and get the distances of the obj in this frame
-                    for obj_id, feature_vector in scan_data[frame_idx].items():
-                        #add the id to the frameobje ids
-                        frame_obj_ids.append(obj_id)
-                        # normalize the query vec
-                        query_vector = np.array(feature_vector).reshape(1, -1)
-                        faiss.normalize_L2(query_vector)
+                #keep track of the order of the scan_frame_ids
+                frame_obj_ids = []
+                
+                #iterate through the objects and get the distances of the obj in this frame
+                for obj_id, feature_vector in scan_data[frame_idx].items():
+                    #add the id to the frameobje ids
+                    frame_obj_ids.append(obj_id)
+                    # normalize the query vec
+                    query_vector = np.array(feature_vector).reshape(1, -1)
+                    faiss.normalize_L2(query_vector)
 
-                        #get distance and ids for the clos
-                        distances, indices = index.search(query_vector,max(self.k_means)) #get the max of k then we already know which ones are closer :)
+                    #get distance and ids for the clos
+                    distances, indices = index.search(query_vector,max(self.k_means)) #get the max of k then we already know which ones are closer :)
 
-                        # get the object ids of the closest reference vectors and the distances
-                        nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
-                        nearest_distances = distances[0]
+                    # get the object ids of the closest reference vectors and the distances
+                    nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
+                    nearest_distances = distances[0]
 
-                        cosine_obj_ids.append(nearest_obj_ids)
-                        cosine_distanc.append(nearest_distances)
-                    
-                    #we now have the ids of the frame and the corresponding closest objects and their distances yey
+                    cosine_obj_ids.append(nearest_obj_ids)
+                    cosine_distanc.append(nearest_distances)
+                
+                #we now have the ids of the frame and the corresponding closest objects and their distances yey
 
-                    #access the gt for this frame
-                    gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
+                #access the gt for this frame
+                gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
 
-                    with open(gt_input_patchwise_path, 'rb') as file:
-                        gt_input_patchwise = pickle.load(file)
+                with open(gt_input_patchwise_path, 'rb') as file:
+                    gt_input_patchwise = pickle.load(file)
 
-                    gt_patches = gt_input_patchwise[frame_idx]
+                gt_patches = gt_input_patchwise[frame_idx]
 
-                    #check if there are any new objects in the frame
-                    frame_has_new_obj = self.has_frame_new_object(gt_patches, new_objects)
-                    #get the correct computations and iteraste through every combination
-                    for t_idx, th in enumerate (self.ths):
-                        for k_idx, k in enumerate (self.k_means):
-                            # get the majority vote of the k closest points
-                            cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
-                            # print("majorities", cosine_majorities)
-                            # print("segmentation data", segmentation_data[frame_idx])
-                            # print("frame obj ids", frame_obj_ids)
-                            #translate the matched object ids to pixellevel of the frame
-                            cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],frame_obj_ids,cosine_majorities)
-                            
-                            #quantize to patchlevel of to be comparable to gt
-                            cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
+                #check if there are any new objects in the frame
+                frame_has_new_obj = self.has_frame_new_object(gt_patches, new_objects)
+                #get the correct computations and iteraste through every combination
+                for t_idx, th in enumerate (self.ths):
+                    for k_idx, k in enumerate (self.k_means):
+                        # get the majority vote of the k closest points
+                        cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
+                        # print("majorities", cosine_majorities)
+                        # print("segmentation data", segmentation_data[frame_idx])
+                        # print("frame obj ids", frame_obj_ids)
+                        #translate the matched object ids to pixellevel of the frame
+                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],frame_obj_ids,cosine_majorities)
+                        
+                        #quantize to patchlevel of to be comparable to gt
+                        cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
 
 
-                            #access the ground truth patches for this frame
-                            gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
+                        #access the ground truth patches for this frame
+                        gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
 
-                            with open(gt_input_patchwise_path, 'rb') as file:
-                                gt_input_patchwise = pickle.load(file)
+                        with open(gt_input_patchwise_path, 'rb') as file:
+                            gt_input_patchwise = pickle.load(file)
 
-                            
-                            #finally compute the accuracies: based on area and object ids and fill into the matrix
-                            #for cosine
-                            cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_patches,cosine_patch_level, new_objects)
-                            
-                            #only fill out if ther is a new object
-                            if frame_has_new_obj:
-                                cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_patches,cosine_patch_level, new_objects)
+                        
+                        #finally compute the accuracies: based on area and object ids and fill into the matrix
+                        #for cosine
+                        cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_patches,cosine_patch_level, new_objects)
+                        
+                        #only fill out if ther is a new object
+                        if frame_has_new_obj:
+                            cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_patches,cosine_patch_level, new_objects)
 
-                            cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_patches,cosine_patch_level, new_objects)
+                        cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_patches,cosine_patch_level, new_objects)
 
-                    scan_cosine_obj_metric.append(cosine_obj_metric)
-                    scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
-                    scan_cosine_patch_metric.append(cosine_patch_metric)
+                scan_cosine_obj_metric.append(cosine_obj_metric)
+                scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
+                scan_cosine_patch_metric.append(cosine_patch_metric)
 
-                    #update frame bar
-                    frame_pbar.update(1)
+               
+              
                 
                         
         return scan_cosine_obj_metric, scan_cosine_new_obj_metric, scan_cosine_patch_metric
@@ -599,7 +598,7 @@ class Evaluator():
        
      
 
-        workers = 3
+        workers = 5
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
