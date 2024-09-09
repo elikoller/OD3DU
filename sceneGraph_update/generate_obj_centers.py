@@ -5,17 +5,16 @@ import os
 import glob
 import faiss
 import random
+from PIL import Image
 import concurrent.futures
 from tqdm.auto import tqdm
 import pickle
 import traceback
-from sklearn.metrics.pairwise import cosine_similarity
 from collections import Counter
 import plyfile
 import numpy as np
 import open3d as o3d
 from sklearn.decomposition import PCA
-from sklearn.metrics.pairwise import cosine_distances
 from scipy.spatial import cKDTree
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -24,7 +23,6 @@ import open3d as o3d
 import h5py
 from sklearn.decomposition import PCA
 from scipy.spatial import distance
-from sklearn.metrics.pairwise import euclidean_distances
 
 import cv2
 import numpy as np
@@ -110,7 +108,7 @@ class Evaluator():
             self.scan_ids = ref_scans_split
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Results","mask_metric" )
+        self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
         common.ensure_dir(self.out_dir)
 
      
@@ -127,36 +125,6 @@ class Evaluator():
             frame_idxs = [frame_idx for frame_idx in frame_idxs[::skip]]
         return frame_idxs
     
-    
-
-    def reconstruct_to_image(self, patchwise_id):
-        patch_width = int(self.image_width / self.image_patch_w)
-        patch_height = int(self.image_height / self.image_patch_h)
-        
-        # Initialize an empty image with zeros (assuming same type as original)
-        reconstructed_img = np.zeros((self.image_height, self.image_width), dtype=np.int32)
-        
-        # Loop over patches and place the patchwise_id values into the reconstructed image
-        for i in range(self.image_patch_h):
-            for j in range(self.image_patch_w):
-                # Define the coordinates of the current patch
-                h_start = i * patch_height
-                w_start = j * patch_width
-                h_end = h_start + patch_height
-                w_end = w_start + patch_width
-                
-                # Assign the patchwise_id value to the corresponding patch area
-                reconstructed_img[h_start:h_end, w_start:w_end] = patchwise_id[i, j]
-        
-        return reconstructed_img
-
-
-    def compute_iou(self,mask, gt_mask):
-        # intersection of masks / union
-        intersection = np.logical_and(mask, gt_mask).sum()
-        union = np.logical_or(mask, gt_mask).sum()
-        return intersection / union if union != 0 else 0
-
 
     #returns featuer in the form of features: frame: list of {objext_id, bbox, mask} objects
     def read_segmentation_data(self,segmentation_path):
@@ -201,20 +169,11 @@ class Evaluator():
     # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
-        #access the necessary data for the reference scene
-    
-        reference_info_path = osp.join("/local/home/ekoller/R3Scan/files/patch_anno", "patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
-        gt_patches = scan3r.load_pkl_data(reference_info_path)
-        
-        #init the result for this scan_id 
-        scan_mask_metric= [] 
-        
+       
 
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
-
-    
 
         #now the frame
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
@@ -224,40 +183,35 @@ class Evaluator():
 
         
             for frame_idx in frame_idxs_sublist:
-                #turn the gt into an image again
-                gt_img = self.reconstruct_to_image( gt_patches[frame_idx])
+            
+            
+                #access the depht image
+                depth_path = osp.join(self.scans_dir, scan_id, "sequence", "frame-{}.depth.pgm".format(frame_idx))
+                #access the file
+                pgm_file = Image.open(depth_path)
+        
+                #since its distances so discrete things take the nearest value not a different interpolation
+                depth_mat_resized = pgm_file.resize((self.image_height,self.image_width), Image.NEAREST) 
+            
+                #depth is given in mm so put it into m
+                depth_mat = np.array(depth_mat_resized)
+                depth_mat = depth_mat * 0.001
+               
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
                     #access the mask for the object
                     mask = boundingboxes['mask']
-                    
-
                     #get the coords of the mask
                     mask_coords = np.nonzero(mask)
 
-                    # #get the region in the gt corresponding to the mask
-                    min_y, max_y = np.min(mask_coords[0]), np.max(mask_coords[0]) + 1
-                    min_x, max_x = np.min(mask_coords[1]), np.max(mask_coords[1]) + 1
-                    gt_region = gt_img[min_y:max_y, min_x:max_x]
-                    gt_region = gt_img[mask_coords]
+      
                 
-                    #get the most common value of the gt at the place of the mask
-                    flattened_gt_region = gt_region.flatten()
-                    value_counts = Counter(flattened_gt_region)
-                    most_common_id = value_counts.most_common(1)[0][0]
+                    
+ 
 
-                    #turn  it into a mask 
-                    gt_mask = (gt_img == most_common_id).astype(np.uint8)
-                    #compute the metric of the overlapp
-                    iou = self.compute_iou(mask, gt_mask)
-
-                    scan_mask_metric.append(iou) 
-
-
-        #we need the mean
-        mean_val = np.mean(scan_mask_metric, axis=0)      
+      
                         
-        return mean_val
+        return 
 
     def compute(self):
         #prepare the matricies for the 4 different metrics
