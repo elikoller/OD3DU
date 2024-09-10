@@ -307,9 +307,11 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
             # Add the first rescan (or any specific rescan logic)
             all_scans_split.append(rescans[0])
     
+    #we need the grapth structure for both the reference and the rescan
     all_scans_split =list(ref_scans_split) + list(all_scans_split)
-    
-    print(list(all_scans_split))
+
+ 
+
     
     """
     elenas change

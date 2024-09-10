@@ -95,7 +95,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split[:100]:
+        for ref_scan in ref_scans_split[:2]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -103,8 +103,8 @@ class Evaluator():
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
-        print("reference scans ", np.array(ref_scans_split))
-        print("rescans ", self.all_scans_split)
+        # print("reference scans ", np.array(ref_scans_split))
+        # print("rescans ", self.all_scans_split)
 
         if self.rescan:
             self.scan_ids = self.all_scans_split
@@ -443,13 +443,7 @@ class Evaluator():
         reference_info_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(reference_id))
         ref_data = self.read_ref_data(reference_info_path)
         
-        #init the result for this scan_id 
-        scan_cosine_obj_metric= [] 
-        scan_cosine_new_obj_metric= [] 
-        scan_cosine_patch_metric= []
-        
-        
-        
+    
         #build a treee structure fo a fast access of cosine similarity keeping also the obj_ids 
         ref_obj_ids = []
         ref_vectors = []
@@ -489,9 +483,20 @@ class Evaluator():
         #find out which objects have not been present in the reference scene ( not only frame!)
         present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
         present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
+        print("presetn obj", present_obj_reference)
+        print("new obj", present_obj_scan)
         new_objects = list(set(present_obj_scan) - set(present_obj_reference))
+        print("unseen obj", new_objects)
 
+        #init the result for this scan_id
+        scene_has_new_obj = False
+        if len(new_objects) > 0:
+            scan_cosine_new_obj_metric= []
+            scene_has_new_obj= True
+        scan_cosine_obj_metric= []  
+        scan_cosine_patch_metric= []
 
+     
         #now the frame
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
             start_idx = infer_step_i * self.inference_step
@@ -581,11 +586,15 @@ class Evaluator():
                         cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_patches,cosine_patch_level, new_objects)
 
                 scan_cosine_obj_metric.append(cosine_obj_metric)
-                scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
+                if frame_has_new_obj:
+                    scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
                 scan_cosine_patch_metric.append(cosine_patch_metric)
 
+        
+
                
-              
+        if(len(scan_cosine_new_obj_metric)> 0):
+             print("scanid wth new object", scan_id)      
                 
                         
         return scan_cosine_obj_metric, scan_cosine_new_obj_metric, scan_cosine_patch_metric
@@ -598,7 +607,7 @@ class Evaluator():
        
      
 
-        workers = 5
+        workers = 3
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
@@ -611,7 +620,7 @@ class Evaluator():
                     try:
                         cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric = future.result()
                         
-                        # get the result matricies
+                       # get the result matricies
                         all_cosine_obj_metric.extend(cosine_obj_metric)
                         all_cosine_patch_metric.extend(cosine_patch_metric)
                         if len(cosine_new_obj_metric) > 0:
@@ -625,12 +634,27 @@ class Evaluator():
                     # progressed
                     pbar.update(1)
 
+        # for scan_id in tqdm(self.all_scans_split, desc="Processing Scans", unit="scan"):
+
+        #     cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric = self.compute_scan(scan_id, mode)
+        #     # get the result matricies
+        #     all_cosine_obj_metric.extend(cosine_obj_metric)
+        #     all_cosine_patch_metric.extend(cosine_patch_metric)
+        #     if len(cosine_new_obj_metric) > 0:
+        #         all_cosine_new_obj_metric.extend(cosine_new_obj_metric)
+        #     print("added results of scan id ", scan_id, " successfully")
+       
+
+
         print("writing the file")
         #we want the result over all scenes
-        mean_cosine_obj_metric = np.mean(all_cosine_obj_metric)
-        mean_cosine_new_obj_metric = np.mean(all_cosine_new_obj_metric)
-        mean_cosine_patch_metric = np.mean(all_cosine_patch_metric)
+        mean_cosine_obj_metric = np.mean(np.array(all_cosine_obj_metric), axis= 0)
+        mean_cosine_new_obj_metric = np.mean(np.array(all_cosine_new_obj_metric), axis=0)
+        mean_cosine_patch_metric = np.mean(np.array(all_cosine_patch_metric), axis=0)
         
+        print("obj", mean_cosine_obj_metric)
+        print("new", mean_cosine_new_obj_metric)
+        print("patch", mean_cosine_patch_metric)
        
 
         #create sesult dict
@@ -643,7 +667,7 @@ class Evaluator():
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
         result_file_path = osp.join(result_dir,  "results_not_padded.pkl")
-        common.write_pkl_data(result_file_path, result)
+        common.write_pkl_data(result, result_file_path)
                     
                 
     

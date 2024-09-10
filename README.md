@@ -174,10 +174,15 @@ This will create patch-level features for query images and save in "{Data_ROOT_D
 
 
 
-### Computation of best parameters
+### Computation of best parameters "Training
 To generate the tables with the accuracies, use : 
 ```bash
 bash scripts/matching/computation.sh
+```
+### Match objects
+
+```bash
+bash scripts/predicted_objects/predict_objects.sh
 ```
 
 

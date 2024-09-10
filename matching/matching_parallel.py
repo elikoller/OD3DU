@@ -59,6 +59,7 @@ class Evaluator():
         #parameters
         self.k_means = cfg.parameters.k_means
         self.ths = cfg.parameters.threshold
+        self.mode = cfg.parameters.mode
 
 
         
@@ -95,7 +96,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split[:123]:
+        for ref_scan in ref_scans_split[:1]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -325,14 +326,14 @@ class Evaluator():
         return features
 
 
-    def compute_scan(self,scan_id, mode):
+    def compute_scan(self,scan_id):
 
     # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
         reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
-        reference_info_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(reference_id))
+        reference_info_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(reference_id))
         ref_data = self.read_ref_data(reference_info_path)
         
         
@@ -358,10 +359,10 @@ class Evaluator():
         index.add(ref_vectors)
 
         #initialize the result for the scene
-        all_matches = []
+        all_matches = {}
 
         #access the scan feature info to iterate over it later
-        scan_info_path = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(scan_id))
+        scan_info_path = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(scan_id))
         scan_data = self.read_scan_data(scan_info_path)
 
         #now the frame
@@ -370,46 +371,46 @@ class Evaluator():
             end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
             frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
 
-            with tqdm(total=len(frame_idxs_sublist)) as frame_pbar:
-                for frame_idx in frame_idxs_sublist:
-                    #initialze the matricies we will fill
-                    #get the lengths of the parameters
-                    all_matches[frame_idx] = []
+        
+            for frame_idx in frame_idxs_sublist:
+                #initialze the matricies we will fill
+                #get the lengths of the parameters
+                all_matches[frame_idx] = []
+                
+
+                #initialize the distances
+                cosine_distanc = []
+                cosine_obj_ids = []
+
+                #keep track of the order of the scan_frame_ids
+                frame_obj_ids = []
+                
+                #iterate through the objects and get the distances of the obj in this frame
+                for obj_id, feature_vector in scan_data[frame_idx].items():
+                    #add the id to the frameobje ids
+                    frame_obj_ids.append(obj_id)
+                    # normalize the query vec
+                    query_vector = np.array(feature_vector).reshape(1, -1)
+                    faiss.normalize_L2(query_vector)
+
+                    #get distance and ids for the clos
+                    distances, indices = index.search(query_vector,self.k_means) #get the max of k then we already know which ones are closer :)
                     
+                    # get the object ids of the closest reference vectors and the distances
+                    nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
+                    nearest_distances = distances[0]
 
-                    #initialize the distances
-                    cosine_distanc = []
-                    cosine_obj_ids = []
-
-                    #keep track of the order of the scan_frame_ids
-                    frame_obj_ids = []
-                    
-                    #iterate through the objects and get the distances of the obj in this frame
-                    for obj_id, feature_vector in scan_data[frame_idx].items():
-                        #add the id to the frameobje ids
-                        frame_obj_ids.append(obj_id)
-                        # normalize the query vec
-                        query_vector = np.array(feature_vector).reshape(1, -1)
-                        faiss.normalize_L2(query_vector)
-
-                        #get distance and ids for the clos
-                        distances, indices = index.search(query_vector,self.k_means) #get the max of k then we already know which ones are closer :)
-
-                        # get the object ids of the closest reference vectors and the distances
-                        nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
-                        nearest_distances = distances[0]
-
-                        cosine_obj_ids.append(nearest_obj_ids)
-                        cosine_distanc.append(nearest_distances)
-                    
+                    cosine_obj_ids.append(nearest_obj_ids)
+                    cosine_distanc.append(nearest_distances)
+                
                    
 
                   
                 cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
                 all_matches[frame_idx] = cosine_majorities
                           
-        #save the result 
         
+        print(all_matches)
         #save the file in the results direcrtory
         result_file_path = osp.join(self.out_dir,scan_id +".h5")
         with h5py.File(result_file_path, 'w') as hdf_file:
@@ -443,17 +444,17 @@ class Evaluator():
 
          
                 #update frame bar
-                frame_pbar.update(1)
+                
                 
         return True
 
-    def compute(self, mode):
+    def compute(self):
     
         workers = 3
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.compute_scan, scan_id, mode): scan_id for scan_id in self.scan_ids}
+            futures = {executor.submit(self.compute_scan, scan_id): scan_id for scan_id in self.scan_ids}
             
             # Use tqdm for progress bar, iterating as tasks are completed
             with tqdm(total=len(self.scan_ids)) as pbar:

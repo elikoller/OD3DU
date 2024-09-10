@@ -90,7 +90,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[:1]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -178,7 +178,7 @@ class Evaluator():
                 # Load the frame_id -> obj mappings
                 for frame_id in frame_group.keys():
                     obj = frame_group[frame_id][()]
-                    matches[frame_id] = obj  # Convert back to int
+                    matches[frame_id] = int(obj)  # Convert back to int
                 
                 loaded_matches[frame_idx] = matches 
 
@@ -206,10 +206,10 @@ class Evaluator():
     def transform_to_3d(self, scan_id, depth_map, frame_number):
         
         #access the extrinsic/pose of the camera
-        pose_rescan = scan3r.load_pose(self.scans_dir, scan_id, frame_number)
+        pose_rescan = scan3r.load_pose(self.scans_scenes_dir, scan_id, frame_number)
         pose_in_ref = self.pose_in_reference( scan_id, pose_rescan)
         
-        camera_info = scan3r.load_intrinsics(self.scans_dir, scan_id)
+        camera_info = scan3r.load_intrinsics(self.scans_scenes_dir, scan_id)
         intrinsics = camera_info['intrinsic_mat']
         img_width = int(camera_info['width'])
         img_height = int(camera_info['height'])
@@ -292,8 +292,14 @@ class Evaluator():
 
     def do_pcl_overlap(self,obj_pcl, cluster):
         #create a voxel grid
-        voxel_grid1 = o3d.geometry.VoxelGrid.create_from_point_cloud(obj_pcl, self.voxel_size)
-        voxel_grid2 = o3d.geometry.VoxelGrid.create_from_point_cloud(cluster, self.voxel_size)
+        #turn into pointclouds
+        obj_point_cloud = o3d.geometry.PointCloud()
+        obj_point_cloud.points = o3d.utility.Vector3dVector(obj_pcl)
+        voxel_grid1 = o3d.geometry.VoxelGrid.create_from_point_cloud(obj_point_cloud, self.voxel_size)
+
+        cluster_point_cloud = o3d.geometry.PointCloud()
+        cluster_point_cloud.points = o3d.utility.Vector3dVector(cluster)
+        voxel_grid2 = o3d.geometry.VoxelGrid.create_from_point_cloud(cluster_point_cloud, self.voxel_size)
     
         
         """Compare two voxel grids to see how much they overlap."""
@@ -313,7 +319,7 @@ class Evaluator():
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
         #access the matched data
-        matches = self.read_matching_data(self.data_root_dir, scan_id)
+        matches = self.read_matching_data(scan_id)
 
         #prepare a dictionary for the scene containing the new object centers of the seen objects
         all_clusters = {}
@@ -329,7 +335,7 @@ class Evaluator():
                 #access the matches for this frame
                 frame_matches = matches[frame_idx]
                 #access the depht image
-                depth_path = osp.join(self.scans_dir, scan_id, "sequence", "frame-{}.depth.pgm".format(frame_idx))
+                depth_path = osp.join(self.scans_scenes_dir, scan_id, "sequence", "frame-{}.depth.pgm".format(frame_idx))
                 #access the file
                 pgm_file = Image.open(depth_path)
         
@@ -341,7 +347,7 @@ class Evaluator():
                 depth_mat = depth_mat * 0.001
 
                 #transform to world coordinates in the reference frame
-                world_coordinates_frame = self.transform_to_3d(self, scan_id, depth_mat, frame_idx)
+                world_coordinates_frame = self.transform_to_3d(scan_id, depth_mat, frame_idx)
                
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
@@ -350,9 +356,11 @@ class Evaluator():
                 
                     #get the dino object_id 
                     dino_id = boundingboxes["object_id"]
-
+                    #print("frame ", frame_idx, " dino_id ", dino_id)
                     #get the matched id
-                    object_id = frame_matches[dino_id]
+                    #print("matches frame ", frame_matches)
+                    object_id = frame_matches[str(dino_id)]
+                    
 
                     #isolate only the object pointcloud
                     obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, mask)
@@ -372,7 +380,8 @@ class Evaluator():
                             #look if it overlapt with a cluster
                             if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
                                 #merge it
-                                cluster[i] = self.merge_pcls(obj_pcl, cluster)
+                                merged_points  = np.vstack((obj_pcl,cluster))
+                                all_clusters[object_id][i] = merged_points
                                 #got merged
                                 merged = True
                         #not merged yet so create new cluster for this obje       
@@ -385,7 +394,8 @@ class Evaluator():
         all_centers = {}
         #iterte through the objects
         for obj_id, clusters in enumerate(all_clusters):
-            #get the cluster with the most points aka largest one
+            #get the cluster with the most points aka largest 
+            print(clusters)
             largest_cluster = max(clusters, key=lambda c:len(c))
             #create pointcloud and downsample it
             point_cloud = o3d.geometry.PointCloud()
@@ -407,7 +417,8 @@ class Evaluator():
 
 
             return all_centers
-            
+    """ Todo: for the new objects we cann not use the mapped ids since they are rando for each frame: keep a list which does the following_
+    """
 
     
 
