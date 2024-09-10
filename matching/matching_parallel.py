@@ -118,7 +118,7 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Results" )
+        self.out_dir = osp.join(self.data_root_dir, "Predicted_Matches" )
         common.ensure_dir(self.out_dir)
 
      

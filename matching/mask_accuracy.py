@@ -245,7 +245,7 @@ class Evaluator():
                     flattened_gt_region = gt_region.flatten()
                     value_counts = Counter(flattened_gt_region)
                     most_common_id = value_counts.most_common(1)[0][0]
-
+                    
                     #turn  it into a mask 
                     gt_mask = (gt_img == most_common_id).astype(np.uint8)
                     #compute the metric of the overlapp
@@ -276,9 +276,9 @@ class Evaluator():
                     scan_id = futures[future]
                     try:
                         iou_score = future.result()
-
+                        ref_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
                         # get the result matricies
-                        mask_metric[scan_id] = iou_score
+                        mask_metric[ref_id] = iou_score
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")

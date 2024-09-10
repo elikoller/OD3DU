@@ -55,11 +55,8 @@ class Evaluator():
         self.model_name = cfg.model.name
 
         #parameters
-        self.k_means = cfg.parameters.k_means
-        self.ths = cfg.parameters.threshold
-
-
-        
+        self.voxel_size = cfg.parameters.voxel_size
+        self.minimum_points: cfg.parameters.minimum_points
 
 
         #patch info 
@@ -108,7 +105,8 @@ class Evaluator():
             self.scan_ids = ref_scans_split
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
+        #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
+        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Centers")
         common.ensure_dir(self.out_dir)
 
      
@@ -161,8 +159,147 @@ class Evaluator():
                
                 features[frame_idx] = bounding_boxes
         return features
- 
-  
+    
+
+    #return an object with the structure:scan_id: frame_number: frame_obj_id: matched id
+    def read_matching_data(self, scan_id):
+        # get the file and iterate through everything to create an object
+        matchfile = osp.join(self.data_root_dir, "Predicted_Matches", scan_id + ".h5")
+        with h5py.File(matchfile, 'r') as hdf_file:
+            loaded_matches = {}
+            
+            # Iterate through frame indices
+            for frame_idx in hdf_file.keys():
+                matches = {}
+                
+                # Access the group for each frame index
+                frame_group = hdf_file[frame_idx]
+                
+                # Load the frame_id -> obj mappings
+                for frame_id in frame_group.keys():
+                    obj = frame_group[frame_id][()]
+                    matches[frame_id] = obj  # Convert back to int
+                
+                loaded_matches[frame_idx] = matches 
+
+        return loaded_matches
+    
+
+    def pose_in_reference(self, scan_id , pose_rescan):
+        #same coordinate system
+        ref_id = scan3r.get_reference_id(self.data_root_dir,scan_id)
+        #if we want the coords in the reference coordinate system return the boxes (based on pkl file)
+        if scan_id==ref_id:
+            return pose_rescan
+        
+
+        #transform the centers of rescan to ref coord
+        path = osp.join(self.data_root_dir,"files", "3RScan.json")
+        map_id_to_trans = scan3r.read_transform_mat(path)
+        transform = map_id_to_trans[scan_id]
+        transform= transform.reshape(4,4)
+
+        #transform the pose
+
+        return  transform.transpose() * pose_rescan
+
+    def transform_to_3d(self, scan_id, depth_map, frame_number):
+        
+        #access the extrinsic/pose of the camera
+        pose_rescan = scan3r.load_pose(self.scans_dir, scan_id, frame_number)
+        pose_in_ref = self.pose_in_reference( scan_id, pose_rescan)
+        
+        camera_info = scan3r.load_intrinsics(self.scans_dir, scan_id)
+        intrinsics = camera_info['intrinsic_mat']
+        img_width = int(camera_info['width'])
+        img_height = int(camera_info['height'])
+
+        """
+        do the computations based on following formula 
+
+        """
+        #from 2d to camera coordinates xc = (u-cx)*z / fx,   yc = (v-cy)*z/ fy    , zc= z 
+        #create a mesh grid 
+        u, v = np.meshgrid(np.arange(img_width), np.arange(img_height))
+
+        #also access the intrinsic values which are stored the following way
+        # intrinsic_mat = np.array([[intrinsic_fx, 0, intrinsic_cx],
+        #                                     [0, intrinsic_fy, intrinsic_cy],
+        #                                     [0, 0, 1]])
+
+        fx = intrinsics[0, 0]  # Focal length in x direction
+        fy = intrinsics[1, 1]  # Focal length in y direction
+        cx = intrinsics[0, 2]  # Principal point x
+        cy = intrinsics[1, 2]  # Principal point y
+        #flatten everything for computations
+        u_flat = u.flatten()
+        v_flat = v.flatten()
+        depth_flat = depth_map.flatten()
+
+        #apply the formula from above
+        x_c = (u_flat - cx) * depth_flat / fx
+        y_c = (v_flat - cy) * depth_flat / fy
+        z_c = depth_flat
+
+        #turn the camera coordinates into homogeneous coordinates
+        camera_coords_homog  = np.vstack((x_c, y_c, z_c, np.ones_like(x_c)))  
+
+        #apply the extrinsic matrix
+        world_coords_homog = pose_in_ref @ camera_coords_homog
+        #normalize
+        world_coords_homog /= world_coords_homog[3, :]  
+
+        world_coords = world_coords_homog[:3,:]
+        world_coords_T = world_coords.T
+    
+
+        return world_coords_T
+    
+    def isolate_object_coordinates(self,world_coordinates, mask):
+        #make sure it is an array
+        mask = np.array(mask)
+        #flatten & turn into boolean mask
+        mask = mask.flatten()
+        mask = mask.astype(bool)
+        #get the part belonging to the object
+        obj_coordinates = world_coordinates[mask]
+
+        return obj_coordinates
+
+    def voxel_grid_to_coordinates(self,voxel_grid):
+        """Extract voxel coordinates from a VoxelGrid object."""
+        voxels = voxel_grid.get_voxels()
+        voxel_coords = np.array([voxel.grid_index for voxel in voxels])
+        return voxel_coords
+
+
+    def compare_voxel_grids(self, voxel_grid1, voxel_grid2):
+        """Compare two voxel grids to see how much they overlap."""
+        coords1 = self.voxel_grid_to_coordinates(voxel_grid1)
+        coords2 = self.voxel_grid_to_coordinates(voxel_grid2)
+        
+        # Convert to sets of tuples for intersection
+        voxels1_set = set(map(tuple, coords1))
+        voxels2_set = set(map(tuple, coords2))
+        
+        # Compute intersection
+        intersection = voxels1_set.intersection(voxels2_set)
+        union = voxels1_set.union(voxels2_set)
+        
+        similarity = len(intersection) / len(union) if len(union) > 0 else 0
+        return similarity
+
+
+    def do_pcl_overlap(self,obj_pcl, cluster):
+        #create a voxel grid
+        voxel_grid1 = o3d.geometry.VoxelGrid.create_from_point_cloud(obj_pcl, self.voxel_size)
+        voxel_grid2 = o3d.geometry.VoxelGrid.create_from_point_cloud(cluster, self.voxel_size)
+    
+        
+        """Compare two voxel grids to see how much they overlap."""
+        return self.compare_voxel_grids(voxel_grid1, voxel_grid2)
+        
+
 
     def compute_scan(self,scan_id):
 
@@ -175,6 +312,11 @@ class Evaluator():
         segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
+        #access the matched data
+        matches = self.read_matching_data(self.data_root_dir, scan_id)
+
+        #prepare a dictionary for the scene containing the new object centers of the seen objects
+        all_clusters = {}
         #now the frame
         for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
             start_idx = infer_step_i * self.inference_step
@@ -184,7 +326,8 @@ class Evaluator():
         
             for frame_idx in frame_idxs_sublist:
             
-            
+                #access the matches for this frame
+                frame_matches = matches[frame_idx]
                 #access the depht image
                 depth_path = osp.join(self.scans_dir, scan_id, "sequence", "frame-{}.depth.pgm".format(frame_idx))
                 #access the file
@@ -196,28 +339,79 @@ class Evaluator():
                 #depth is given in mm so put it into m
                 depth_mat = np.array(depth_mat_resized)
                 depth_mat = depth_mat * 0.001
+
+                #transform to world coordinates in the reference frame
+                world_coordinates_frame = self.transform_to_3d(self, scan_id, depth_mat, frame_idx)
                
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
                     #access the mask for the object
                     mask = boundingboxes['mask']
-                    #get the coords of the mask
-                    mask_coords = np.nonzero(mask)
-
-      
                 
-                    
- 
+                    #get the dino object_id 
+                    dino_id = boundingboxes["object_id"]
 
-      
-                        
-        return 
+                    #get the matched id
+                    object_id = frame_matches[dino_id]
+
+                    #isolate only the object pointcloud
+                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, mask)
+
+                    #now we need to find out if we add it to the pointcloud of the object it mapped to or not
+                    if object_id not in all_clusters:
+                        #there are no clusters stored for this object jet
+                        all_clusters[object_id] = []
+                        #add the pointcloud directly
+                        all_clusters[object_id].append(obj_pcl)
+                    #object already has pointclouds we need to see if we merge or add a new cluster
+                    else:
+                        #each new cluster starts unmerged
+                        merged = False
+                        #iterate through current clusters and see if we merge it
+                        for i, cluster in enumerate(all_clusters[object_id]):
+                            #look if it overlapt with a cluster
+                            if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
+                                #merge it
+                                cluster[i] = self.merge_pcls(obj_pcl, cluster)
+                                #got merged
+                                merged = True
+                        #not merged yet so create new cluster for this obje       
+                        if not merged:
+                            all_clusters[object_id].append(obj_pcl)
+
+
+        #now that we have the lists of clusters we need to iterate over them and choose the biggest cluster, downsample it & take the average to predict the center
+        #initialize final object
+        all_centers = {}
+        #iterte through the objects
+        for obj_id, clusters in enumerate(all_clusters):
+            #get the cluster with the most points aka largest one
+            largest_cluster = max(clusters, key=lambda c:len(c))
+            #create pointcloud and downsample it
+            point_cloud = o3d.geometry.PointCloud()
+            point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
+            
+            # Downsample the point cloud using voxel grid filtering
+            downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
+            
+            # Convert downsampled point cloud back to a numpy array
+            downsampled_points = np.asarray(downsampled_pcd.points)
+            obj_center = np.mean(downsampled_points, axis=0)
+            
+            #save everithing to be able to visualize it later :)
+
+            all_centers[obj_id] = {
+                'center': obj_center,
+                'points': downsampled_points
+            }
+
+
+            return all_centers
+            
+
+    
 
     def compute(self):
-        #prepare the matricies for the 4 different metrics
-        mask_metric = {}
-       
-
         workers = 2
         
         # parallelize the computations
@@ -229,10 +423,10 @@ class Evaluator():
                 for future in concurrent.futures.as_completed(futures):
                     scan_id = futures[future]
                     try:
-                        iou_score = future.result()
+                        centers = future.result()
 
-                        # get the result matricies
-                        mask_metric[scan_id] = iou_score
+                        result_file_path = osp.join(self.out_dir, scan_id + ".pkl")
+                        common.write_pkl_data( centers, result_file_path)
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")
@@ -242,18 +436,14 @@ class Evaluator():
                     # progressed
                     pbar.update(1)
 
-        print("writing the file")
+        print("Done")
         
         
-        #save the file in the results direcrtory
-        result_file_path = osp.join(self.out_dir,  "mask_metric.pkl")
-        common.write_pkl_data( mask_metric, result_file_path)
+       
                     
                 
     
-              
-
-            
+  
 
 
 def parse_args():
