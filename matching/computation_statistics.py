@@ -434,8 +434,8 @@ class Evaluator():
 
 
     def compute_scan(self,scan_id, mode):
-
-    # Load image paths and frame indices
+        print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
+        # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
@@ -489,10 +489,9 @@ class Evaluator():
         print("unseen obj", new_objects)
 
         #init the result for this scan_id
-        scene_has_new_obj = False
-        if len(new_objects) > 0:
-            scan_cosine_new_obj_metric= []
-            scene_has_new_obj= True
+        #this bool needed for later
+      
+        scan_cosine_new_obj_metric= []  
         scan_cosine_obj_metric= []  
         scan_cosine_patch_metric= []
 
