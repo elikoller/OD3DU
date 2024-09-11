@@ -17,6 +17,7 @@ model:
   name: DinoV2
 
 parameters: 
-    voxel_size: 0.1
-    minimum_points: 50
+    voxel_size: 0.065
+    minimum_points: 49
+    minimum_votes: 3
   
