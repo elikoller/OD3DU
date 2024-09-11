@@ -187,6 +187,15 @@ class Scan3rDinov2Generator():
                 if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
                     self.all_scans_split.remove(done_scan)
         
+
+        if(self.proj):
+            for done_scan in ref_scans_split:   
+                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
+                path_max = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
+                path_median= Path(osp.join("/media/ekoller/T7/Features2D/projection""/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
+                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
+                    ref_scans_split.remove(done_scan)
+                    
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
     def register_model(self):

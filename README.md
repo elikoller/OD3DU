@@ -98,16 +98,10 @@ The structure should be:
 To unzip the sequence files within the §RScan/scenes/  you can use
 directly in the terminal
 
+go into the correct directory with the scan_ids
 
-
-cd /local/home/ekoller/R3Scan/
-
-
-for folder in scenes/*/; do
-
-
-    (cd "$folder" && unzip -o '*.zip' -d sequence && rm -f *.zip)
-    
+ find . -name '*.zip' -execdir unzip -o '{}' -d sequence \; -execdir rm -f '{}' \;
+   
 
 go to the scenes directory and type in the following find . -name '*.zip' -execdir unzip -o '{}' -d sequence \; -execdir rm -f '{}' \;
 done

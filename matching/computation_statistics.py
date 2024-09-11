@@ -633,15 +633,21 @@ class Evaluator():
                     # progressed
                     pbar.update(1)
 
-        # for scan_id in tqdm(self.all_scans_split, desc="Processing Scans", unit="scan"):
+        # new_obj = []
+        # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
+        #     # print an array of scenes 
+        #     reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
+        #     present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
+        #     present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
+        #     new_objects = list(set(present_obj_scan) - set(present_obj_reference))
+        #     if len(new_objects) > 0:
+        #         new_obj.append(reference_id)
 
-        #     cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric = self.compute_scan(scan_id, mode)
-        #     # get the result matricies
-        #     all_cosine_obj_metric.extend(cosine_obj_metric)
-        #     all_cosine_patch_metric.extend(cosine_patch_metric)
-        #     if len(cosine_new_obj_metric) > 0:
-        #         all_cosine_new_obj_metric.extend(cosine_new_obj_metric)
-        #     print("added results of scan id ", scan_id, " successfully")
+
+        print("array of references with new obj", new_obj)
+        
+
+
        
 
 

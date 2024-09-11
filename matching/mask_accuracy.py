@@ -95,7 +95,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[:229]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -245,13 +245,13 @@ class Evaluator():
                     flattened_gt_region = gt_region.flatten()
                     value_counts = Counter(flattened_gt_region)
                     most_common_id = value_counts.most_common(1)[0][0]
-                    
-                    #turn  it into a mask 
-                    gt_mask = (gt_img == most_common_id).astype(np.uint8)
-                    #compute the metric of the overlapp
-                    iou = self.compute_iou(mask, gt_mask)
+                    if most_common_id != 0:
+                        #turn  it into a mask 
+                        gt_mask = (gt_img == most_common_id).astype(np.uint8)
+                        #compute the metric of the overlapp
+                        iou = self.compute_iou(mask, gt_mask)
 
-                    scan_mask_metric.append(iou) 
+                        scan_mask_metric.append(iou) 
 
 
         #we need the mean
@@ -289,7 +289,10 @@ class Evaluator():
                     pbar.update(1)
 
         print("writing the file")
-        
+
+     
+
+
         
         #save the file in the results direcrtory
         result_file_path = osp.join(self.out_dir,  "mask_metric.pkl")
