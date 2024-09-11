@@ -347,6 +347,7 @@ class Evaluator():
 
         #convert to numpy for faiss
         ref_obj_ids = np.array(ref_obj_ids)
+        print("reference ids", ref_obj_ids)
         ref_vectors = np.array(ref_vectors)
 
         #normalize vectors
@@ -401,16 +402,17 @@ class Evaluator():
                     nearest_distances = distances[0]
 
                     cosine_obj_ids.append(nearest_obj_ids)
+                
                     cosine_distanc.append(nearest_distances)
                 
                    
 
-                  
+                print("cosine_obj_ids", cosine_obj_ids)  
                 cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
                 all_matches[frame_idx] = cosine_majorities
                           
         
-        print(all_matches)
+        # print(all_matches)
         #save the file in the results direcrtory
         result_file_path = osp.join(self.out_dir,scan_id +".h5")
         with h5py.File(result_file_path, 'w') as hdf_file:

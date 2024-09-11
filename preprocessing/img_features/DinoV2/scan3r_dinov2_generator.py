@@ -104,7 +104,7 @@ class Scan3rDinov2Generator():
 
 
 
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[:1]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -163,7 +163,7 @@ class Scan3rDinov2Generator():
         self.image_patch_h = self.cfg.data.img_encoding.patch_h
         self.step = self.cfg.data.img.img_step
         
-        ## out dir 
+        # ## out dir 
         if(self.proj):
             self.out_dir_avg = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
             self.out_dir_max = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
@@ -179,22 +179,22 @@ class Scan3rDinov2Generator():
         common.ensure_dir(self.out_dir_median)
 
          #since we stopped the computation look which ones are not done yet
-        if(self.dino):
-            for done_scan in self.all_scans_split:   
-                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
-                path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
-                path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
-                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
-                    self.all_scans_split.remove(done_scan)
+        # if(self.dino):
+        #     for done_scan in self.all_scans_split:   
+        #         path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
+        #         path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
+        #         path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
+        #         if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
+        #             self.all_scans_split.remove(done_scan)
         
 
-        if(self.proj):
-            for done_scan in ref_scans_split:   
-                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
-                path_max = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
-                path_median= Path(osp.join("/media/ekoller/T7/Features2D/projection""/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
-                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
-                    ref_scans_split.remove(done_scan)
+        # if(self.proj):
+        #     for done_scan in ref_scans_split:   
+        #         path_avg = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
+        #         path_max = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
+        #         path_median= Path(osp.join("/media/ekoller/T7/Features2D/projection""/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
+        #         if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
+        #             ref_scans_split.remove(done_scan)
                     
         self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
@@ -287,24 +287,26 @@ class Scan3rDinov2Generator():
     
         #make the boundingboxes for the ids which got recognized
         for obj_id in unique_ids:
-            # Create mask for current object ID
-            mask = (new_id == obj_id)
+            #check that the id is not 0 since that is no info
+            if obj_id != 0:
+                # Create mask for current object ID
+                mask = (new_id == obj_id)
 
-            # Find bounding box coordinates
-            rows, cols = np.nonzero(mask)
-            if len(rows) > 0 and len(cols) > 0:
-                min_row, max_row = np.min(rows) - (patch_height), np.max(rows) + (patch_height)
-                min_col, max_col = np.min(cols) - (patch_width), np.max(cols) + (patch_width)
+                # Find bounding box coordinates
+                rows, cols = np.nonzero(mask)
+                if len(rows) > 0 and len(cols) > 0:
+                    min_row, max_row = np.min(rows) - (patch_height), np.max(rows) + (patch_height)
+                    min_col, max_col = np.min(cols) - (patch_width), np.max(cols) + (patch_width)
 
-                # Calculate height and width
-                height = max_row - min_row + 1
-                width = max_col - min_col +1
+                    # Calculate height and width
+                    height = max_row - min_row + 1
+                    width = max_col - min_col +1
 
-                # Store bounding box information
-                bounding_boxes.append({
-                    'object_id': obj_id,
-                    'bbox': [min_col, min_row, width, height]
-                })
+                    # Store bounding box information
+                    bounding_boxes.append({
+                        'object_id': obj_id,
+                        'bbox': [min_col, min_row, width, height]
+                    })
 
         return bounding_boxes
     
@@ -573,10 +575,10 @@ class Scan3rDinov2Generator():
 
             
         # log
-        log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
-            self.feature_generation_time, img_num, self.feature_generation_time / img_num)
-        with open(self.log_file, 'a') as f:
-            f.write(log_str)
+        # log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
+        #     self.feature_generation_time, img_num, self.feature_generation_time / img_num)
+        # with open(self.log_file, 'a') as f:
+        #     f.write(log_str)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
