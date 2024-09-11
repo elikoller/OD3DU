@@ -563,7 +563,14 @@ class Evaluator():
                         centers = future.result()
 
                         result_file_path = osp.join(self.out_dir, scan_id + ".pkl")
-                        common.write_pkl_data( centers, result_file_path)
+                        # common.write_pkl_data( centers, result_file_path)
+                        with h5py.File(result_file_path, 'w') as h5file:
+                            for obj_id, data in centers.items():
+                                # Save the center, points, and votes for each object
+                                obj_group = h5file.create_group(str(obj_id))
+                                obj_group.create_dataset('center', data=data['center'])
+                                obj_group.create_dataset('points', data=data['points'])
+                                obj_group.create_dataset('votes', data=data['votes'])
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")
