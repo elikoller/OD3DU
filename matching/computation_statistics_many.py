@@ -212,6 +212,109 @@ class Evaluator():
 
   
 
+    def compute_patch_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+        # Flatten matrices to iterate over each element
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+        
+        #initialize the result
+        percentage = []
+    
+        #iterate through everything
+
+        for idx in range(len(flat_gt)):
+            #since we can only compare to gt_patches skip everything that has gt_id == 0 == nothing
+            if flat_gt[idx] != 0:
+                #object ids are the same
+                if flat_gt[idx] == flat_comp[idx]:
+                    percentage.append(1)
+                #the object id is actually new and was recognized as new
+                elif (flat_gt[idx] in new_objects) and  (flat_comp[idx] < 0):
+                    percentage.append(1)
+                else:
+                    percentage.append(0)
+
+        percentage = np.array(percentage)
+        mean_percentage = np.mean(percentage)
+        return mean_percentage
+    
+
+    def has_frame_new_object(self, gt_patches,new_objects):
+    
+        #flatten the matricies
+        flat_gt = gt_patches.flatten()
+        present_obj = np.unique(flat_gt)
+        intersection = set(present_obj) & set(new_objects)
+
+        return intersection
+       
+
+
+
+    def compute_new_obj_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+
+        #flatten the matricies
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+       
+        #new objects
+
+        new_mask_gt = (np.isin(flat_gt, new_objects)) & (flat_gt > 0)
+        new_mask_comp =  flat_comp < 0
+     
+        new_combined = new_mask_gt & new_mask_comp
+        
+     
+        new_filtered_comp = flat_comp[new_combined]
+        
+        
+        #since we can not check if the ids correspond
+        total_unique_new_comp = len(np.unique(new_filtered_comp))
+        total_unique_new_gt = float(len(np.unique(flat_gt[new_mask_gt])))
+
+        #it foo many new objects just set it to the gt
+        if total_unique_new_comp > total_unique_new_gt:
+            total_unique_new_comp = total_unique_new_gt
+
+       
+        return float(total_unique_new_comp) / total_unique_new_gt
+
+
+    def compute_obj_metric(self, gt_patches,computed_patches, new_objects):
+        #make sure we dont do something dumm lol
+        assert gt_patches.shape == computed_patches.shape, "Matrices must have the same shape"
+
+        #flatten the matricies
+        flat_gt = gt_patches.flatten()
+        flat_comp = computed_patches.flatten()
+        
+
+        #look at the not new objects
+        #make a mask for not new objects and not id 0 for the gt
+        mask_gt = (~np.isin(flat_gt, new_objects)) & (flat_gt > 0)
+        #access the not new obj in the comp
+        mask_comp = flat_comp > 0
+        
+        #combine the masks to get the idxs at which both are true so for both we are looking at existing objects
+        combined_mask = mask_gt & mask_comp
+      
+        #the elements of the patches must have the same id
+        same_mask = combined_mask & (flat_gt == flat_comp) 
+        #check if the objects overlap at some point
+        
+        matched_comp = flat_comp[same_mask]
+
+        #computed not new objects
+        total_unique_comp = len((np.unique(matched_comp))) #unique ids we computed at the correct location
+        total_unique_gt = float(len(np.unique(flat_gt[mask_gt]))) #how many unique objects ther would have been
+
+        return float(total_unique_comp) /total_unique_gt
+        
+
     def calculate_iou(self,mask1, mask2):
         #intersection/ union of 2 masks -> iou score
         intersection = np.logical_and(mask1, mask2).sum()
@@ -471,9 +574,11 @@ class Evaluator():
         #init the result for this scan_id
         #this bool needed for later
       
+        scan_cosine_new_obj_metric= []  
+        scan_cosine_obj_metric= []  
+        scan_cosine_patch_metric= []
         scan_cosine_iou_metric_precision = []
         scan_cosine_iou_metric_recall = []
-        scan_cosine_metric_f1 = []
 
 
      
@@ -491,9 +596,11 @@ class Evaluator():
                 k_means_len = len(self.k_means)
 
                 #initialize the resultmatrix for this frame
+                cosine_obj_metric = np.zeros((ths_len,k_means_len))
+                cosine__new_obj_metric = np.zeros((ths_len,k_means_len))
+                cosine_patch_metric = np.zeros((ths_len,k_means_len))
                 cosine_iou_metric_precision = np.zeros((ths_len,k_means_len))
                 cosine_iou_metric_recall = np.zeros((ths_len,k_means_len))
-                cosine_metric_f1 = np.zeros((ths_len,k_means_len))
                 
 
                 #initialize the distances
@@ -531,7 +638,8 @@ class Evaluator():
 
                 gt_patches = gt_input_patchwise[frame_idx]
 
-    
+                #check if there are any new objects in the frame
+                frame_has_new_obj = self.has_frame_new_object(gt_patches, new_objects)
                 #get the correct computations and iteraste through every combination
                 for t_idx, th in enumerate (self.ths):
                     for k_idx, k in enumerate (self.k_means):
@@ -548,33 +656,41 @@ class Evaluator():
 
                         
                         #finally compute the accuracies: based on area and object ids and fill into the matrix
-                        precision = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
-                        recall = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
-                        cosine_iou_metric_precision[t_idx][k_idx] = precision
-                        cosine_iou_metric_recall[t_idx][k_idx] = recall
-                        f1 = 0 #formula 2*(precision*recall)/(precision+recall)
-                        if (precision+ recall) == 0:
-                            f1 = 0.0
-                        else:
-                            f1 = 2 * (precision * recall) / (precision + recall)
+                        #for cosine
+                        # cosine_obj_metric[t_idx][k_idx] = self.compute_obj_metric(gt_patches,cosine_patch_level, new_objects)
+                        
+                        # #only fill out if ther is a new object
+                        # if frame_has_new_obj:
+                        #     cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_patches,cosine_patch_level, new_objects)
 
-                        cosine_metric_f1[t_idx][k_idx] = f1
-           
+                        # cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_patches,cosine_patch_level, new_objects)
+                        cosine_iou_metric_precision[t_idx][k_idx] = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
+                        cosine_iou_metric_recall[t_idx][k_idx] = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
+
+
+                # scan_cosine_obj_metric.append(cosine_obj_metric)
+                # if frame_has_new_obj:
+                #     scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
+                # scan_cosine_patch_metric.append(cosine_patch_metric)
                 scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
                 scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
-                scan_cosine_metric_f1.append(cosine_metric_f1)
 
         
 
-            
+               
+        if(len(scan_cosine_new_obj_metric)> 0):
+             print("scanid wth new object", scan_id)      
+                
                         
-        return  scan_cosine_iou_metric_precision, scan_cosine_iou_metric_recall, scan_cosine_metric_f1
+        return scan_cosine_obj_metric, scan_cosine_new_obj_metric, scan_cosine_patch_metric, scan_cosine_iou_metric_precision, scan_cosine_iou_metric_recall
 
     def compute(self, mode):
         #prepare the matricies for the 4 different metrics
+        all_cosine_obj_metric = []
+        all_cosine_new_obj_metric = []
+        all_cosine_patch_metric = []
         all_cosine_iou_metric_precision = []
         all_cosine_iou_metric_recall = []
-        all_cosine_iou_metric_f1 = []
        
      
 
@@ -589,12 +705,15 @@ class Evaluator():
                 for future in concurrent.futures.as_completed(futures):
                     scan_id = futures[future]
                     try:
-                        cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = future.result()
+                        cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric, cosine_iou_metric_precision, cosine_iou_metric_recall = future.result()
                         
                        # get the result matricies
+                        all_cosine_obj_metric.extend(cosine_obj_metric)
+                        all_cosine_patch_metric.extend(cosine_patch_metric)
+                        if len(cosine_new_obj_metric) > 0:
+                            all_cosine_new_obj_metric.extend(cosine_new_obj_metric)
                         all_cosine_iou_metric_precision.extend(cosine_iou_metric_precision)
                         all_cosine_iou_metric_recall.extend(cosine_iou_metric_recall)
-                        all_cosine_iou_metric_f1.extend(cosine_metric_f1)
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")
@@ -615,7 +734,7 @@ class Evaluator():
         #         new_obj.append(reference_id)
 
 
-        # print("array of references with new obj", new_obj)
+        #print("array of references with new obj", new_obj)
         
 
 
@@ -624,24 +743,30 @@ class Evaluator():
 
         print("writing the file")
         #we want the result over all scenes
+        # mean_cosine_obj_metric = np.mean(np.array(all_cosine_obj_metric), axis= 0)
+        # mean_cosine_new_obj_metric = np.mean(np.array(all_cosine_new_obj_metric), axis=0)
+        # mean_cosine_patch_metric = np.mean(np.array(all_cosine_patch_metric), axis=0)
         mean_cosine_iou_metric_precision = np.mean(np.array(all_cosine_iou_metric_precision), axis=0)
         mean_cosine_iou_metric_recall = np.mean(np.array(all_cosine_iou_metric_recall), axis=0)
-        mean_cosine_metric_f1 = np.mean(np.array(all_cosine_iou_metric_f1), axis= 0)
-      
+       
+        # print("obj", mean_cosine_obj_metric)
+        # print("new", mean_cosine_new_obj_metric)
+        # print("patch", mean_cosine_patch_metric)
         print("precision", mean_cosine_iou_metric_precision)
-        print("recall", mean_cosine_iou_metric_recall) 
-        print("F1 score", mean_cosine_metric_f1)     
+        print("recall", mean_cosine_iou_metric_recall)      
 
         #create sesult dict
-        result = {"cosine_iou_metric_precision": mean_cosine_iou_metric_precision,
-                  "cosine_iou_metric_recall": mean_cosine_iou_metric_recall,
-                  "cosine_mectric_f1": mean_cosine_metric_f1
-                }
+        # result = {"cosine_obj_metric": mean_cosine_obj_metric,
+        #           "cosine_new_obj_metric" : mean_cosine_new_obj_metric,
+        #           "cosine_patch_metric": mean_cosine_patch_metric,
+        #           "cosine_iou_metric_precision": mean_cosine_iou_metric_precision,
+        #           "cosine_iou_metric_recall": mean_cosine_iou_metric_recall
+        #         }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation.pkl")
+        result_file_path = osp.join(result_dir,  "results_not_padded.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
