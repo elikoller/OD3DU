@@ -238,20 +238,23 @@ class Evaluator():
             gt_ids_at_coords = gt_patches[tuple(coords.T)]
             #get the max id
             gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
-            #check if it should be a new object 
-            if id < 0:
-                #if is new object but did not get detected
-                if gt_max_id not in new_objects:
-                    ious.append(0)
-                    continue
 
-            #create the masks for the iou computeaiton
-            compued_mask = (computed_patches == id)
-            gt_mask = (gt_patches == gt_max_id)
+            #if the gt id is 0 we have no info
+            if gt_max_id != 0:
+                #check if it should be a new object 
+                if id < 0:
+                    #if is new object but did not get detected
+                    if gt_max_id not in new_objects:
+                        ious.append(0)
+                        continue
 
-            #compute the iou
-            iou_id = self.calculate_iou(compued_mask, gt_mask)
-            ious.append(iou_id)
+                #create the masks for the iou computeaiton
+                compued_mask = (computed_patches == id)
+                gt_mask = (gt_patches == gt_max_id)
+
+                #compute the iou
+                iou_id = self.calculate_iou(compued_mask, gt_mask)
+                ious.append(iou_id)
            
         
 
@@ -264,29 +267,31 @@ class Evaluator():
 
         #iterate over them
         for id in gt_ids:
-            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
-         
-            #get the coordinates of this id
-            coords = np.argwhere(gt_patches == id)
+            #only do actual objects - not 0 id
+            if id != 0:
+                #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
+            
+                #get the coordinates of this id
+                coords = np.argwhere(gt_patches == id)
 
-            #access the coords in the gt
-            computed_ids_at_coords = computed_patches[tuple(coords.T)]
-            #get the max id
-            computed_max_id = Counter(computed_ids_at_coords).most_common(1)[0][0]
-            #check if it should be a new object 
-            if id in new_objects:
-                #if is new object but did not get detected
-                if computed_max_id > 0:
-                    ious.append(0)
-                    continue
+                #access the coords in the gt
+                computed_ids_at_coords = computed_patches[tuple(coords.T)]
+                #get the max id
+                computed_max_id = Counter(computed_ids_at_coords).most_common(1)[0][0]
+                #check if it should be a new object 
+                if id in new_objects:
+                    #if is new object but did not get detected
+                    if computed_max_id > 0:
+                        ious.append(0)
+                        continue
 
-            #create the masks for the iou computeaiton
-            gt_mask = (gt_patches == id)
-            computed_mask = (computed_patches == computed_max_id)
+                #create the masks for the iou computeaiton
+                gt_mask = (gt_patches == id)
+                computed_mask = (computed_patches == computed_max_id)
 
-            #compute the iou
-            iou_id = self.calculate_iou(gt_mask, computed_mask)
-            ious.append(iou_id)
+                #compute the iou
+                iou_id = self.calculate_iou(gt_mask, computed_mask)
+                ious.append(iou_id)
            
         
 

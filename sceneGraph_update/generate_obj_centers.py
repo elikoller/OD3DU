@@ -32,7 +32,7 @@ import sys
 ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
 print(ws_dir)
 sys.path.append(ws_dir)
-from utils import common, scan3r
+from utils import common, scan3r,point_cloud
 
 """
 this currently takes only one rescan per reference scene into consideration
@@ -90,7 +90,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split[:1]:
+        for ref_scan in ref_scans_split[:]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -100,7 +100,7 @@ class Evaluator():
 
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
     
@@ -157,7 +157,7 @@ class Evaluator():
                 
                 # stor it to the corresponding frame
                
-                features[frame_idx] = bounding_boxes
+                features[str(frame_idx)] = bounding_boxes
         return features
     
 
@@ -317,7 +317,7 @@ class Evaluator():
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
-
+        #print("segmentation data keys ", segmentation_data.keys())
         #access the matched data
         matches = self.read_matching_data(scan_id)
 
@@ -354,8 +354,9 @@ class Evaluator():
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
                     #access the mask for the object
-                    mask = boundingboxes['mask']
-                
+                    mask = boundingboxes['mask'] #this mask is in patches to reduce noise in the data
+                    #access the more finegrained mask based on the image
+
                     #get the dino object_id 
                     dino_id = boundingboxes["object_id"]
                     #print("frame ", frame_idx, " dino_id ", dino_id)
@@ -526,18 +527,28 @@ class Evaluator():
             largest_cluster = largest_cluster_data['cluster']
             largest_cluster_votes = largest_cluster_data["votes"]
             #create pointcloud and downsample it
+            # point_cloud = o3d.geometry.PointCloud()
+            # point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
+            
+            # # Downsample the point cloud using voxel grid filtering
+            # downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
+            
+            # Convert downsampled point cloud back to a numpy array
+            # downsampled_points = np.asarray(downsampled_pcd.points)
+            obj_center = np.mean(largest_cluster, axis=0)
+            
+            #save everithing to be able to visualize it later :)
+            #actually use the iterative thing for downsampling
+             #create pointcloud and downsample it
             point_cloud = o3d.geometry.PointCloud()
             point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
             
             # Downsample the point cloud using voxel grid filtering
             downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
             
-            # Convert downsampled point cloud back to a numpy array
+            #Convert downsampled point cloud back to a numpy array
             downsampled_points = np.asarray(downsampled_pcd.points)
-            obj_center = np.mean(downsampled_points, axis=0)
-            
-            #save everithing to be able to visualize it later :)
-
+        
             all_centers[obj_id] = {
                 'center': obj_center,
                 'points': downsampled_points,

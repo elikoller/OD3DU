@@ -55,8 +55,11 @@ class Evaluator():
         self.model_name = cfg.model.name
 
         #parameters
-        self.voxel_size = cfg.parameters.voxel_size
+        self.minimum_votes = cfg.parameters.minimum_votes
         self.minimum_points: cfg.parameters.minimum_points
+        self.overlap_th = cfg.parameters.overlap_th
+        self.voxel_size_downsampling = cfg.parameters.voxel_size_downsampling
+        self.voxel_size_overlap = cfg.parameters.voxel_size_overlap
 
 
         #patch info 
@@ -100,13 +103,13 @@ class Evaluator():
 
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
     
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
-        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Centers")
+        self.out_dir = osp.join("/media/ekoller/T7/center_statistics")
         common.ensure_dir(self.out_dir)
 
      
@@ -295,11 +298,11 @@ class Evaluator():
         #turn into pointclouds
         obj_point_cloud = o3d.geometry.PointCloud()
         obj_point_cloud.points = o3d.utility.Vector3dVector(obj_pcl)
-        voxel_grid1 = o3d.geometry.VoxelGrid.create_from_point_cloud(obj_point_cloud, self.voxel_size)
+        voxel_grid1 = o3d.geometry.VoxelGrid.create_from_point_cloud(obj_point_cloud, self.voxel_size_overlap)
 
         cluster_point_cloud = o3d.geometry.PointCloud()
         cluster_point_cloud.points = o3d.utility.Vector3dVector(cluster)
-        voxel_grid2 = o3d.geometry.VoxelGrid.create_from_point_cloud(cluster_point_cloud, self.voxel_size)
+        voxel_grid2 = o3d.geometry.VoxelGrid.create_from_point_cloud(cluster_point_cloud, self.voxel_size_overlap)
     
         
         """Compare two voxel grids to see how much they overlap."""
@@ -307,13 +310,13 @@ class Evaluator():
         
 
 
-    def compute_scan(self,scan_id):
+    def compute_centers(self,scan_id):
 
     # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
        
-
+        
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
@@ -385,7 +388,7 @@ class Evaluator():
                                 overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                 # keep track of the most overlap cluste
-                                if overlap > 0.1 and overlap > max_overlap:
+                                if overlap > self.overlap_th and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
 
@@ -402,24 +405,6 @@ class Evaluator():
 
                                 # Mark as merged
                                 merged = True
-
-
-                                # # check if there is ovelap with an existing cluster
-                                # if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
-                                #     # Merge the point clouds
-                                #     merged_points = np.vstack((obj_pcl, cluster))
-                                    
-                                #     # merge the cluster
-                                #     all_clusters[object_id][i]['cluster'] = merged_points
-
-                                #     # increment cluster vote
-                                #     all_clusters[object_id][i]['votes'] += 1
-
-                                #     # Mark as merged
-                                #     merged = True
-                                #     break
-
-                                # # do not overlap -> initialize a new cluster to 1
                             if not merged:
                        
                        
@@ -447,7 +432,7 @@ class Evaluator():
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                     # Track the cluster with the highest overlap
-                                    if overlap > 0.1 and overlap > max_overlap:
+                                    if overlap > self.overlap_th and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
                                         best_object_id = neg_key
@@ -468,50 +453,7 @@ class Evaluator():
                                 all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
 
 
-                            # for id in enumerate(negative_keys):
-                            #     #each new cluster starts unmerged
-                            #     merged = False
-                            #     for i, cluster_data in enumerate(all_clusters[id]):
-                            #         cluster = cluster_data['cluster']
 
-                            #         # check if there is ovelap with an existing cluster
-                            #         if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
-                            #             # Merge the point clouds
-                            #             merged_points = np.vstack((obj_pcl, cluster))
-                                        
-                            #             # merge the cluster
-                            #             all_clusters[object_id][i]['cluster'] = merged_points
-
-                            #             # increment cluster vote
-                            #             all_clusters[object_id][i]['votes'] += 1
-
-                            #             # Mark as merged
-                            #             merged = True
-                            #             break
-
-                            #         # do not overlap -> initialize a new cluster to 1
-                            #         if not merged:
-                            #             all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
-
-
-
-
-
-
-
-
-                        # #iterate through current clusters and see if we merge it
-                        # for i, cluster in enumerate(all_clusters[object_id]):
-                        #     #look if it overlapt with a cluster
-                        #     if self.do_pcl_overlap(obj_pcl, cluster) > 0.1:
-                        #         #merge it
-                        #         merged_points  = np.vstack((obj_pcl,cluster))
-                        #         all_clusters[object_id][i] = merged_points
-                        #         #got merged
-                        #         merged = True
-                        # #not merged yet so create new cluster for this obje       
-                        # if not merged:
-                        #     all_clusters[object_id].append(obj_pcl)
 
 
         #now that we have the lists of clusters we need to iterate over them and choose the biggest cluster, downsample it & take the average to predict the center
@@ -525,28 +467,125 @@ class Evaluator():
             largest_cluster_data = max(all_clusters[object_id], key=lambda c: (c['votes'], len(c['cluster'])))
             largest_cluster = largest_cluster_data['cluster']
             largest_cluster_votes = largest_cluster_data["votes"]
-            #create pointcloud and downsample it
-            point_cloud = o3d.geometry.PointCloud()
-            point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
-            
-            # Downsample the point cloud using voxel grid filtering
-            downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
-            
-            # Convert downsampled point cloud back to a numpy array
-            downsampled_points = np.asarray(downsampled_pcd.points)
-            obj_center = np.mean(downsampled_points, axis=0)
-            
-            #save everithing to be able to visualize it later :)
+            #create the objec center
+            obj_center = np.mean(largest_cluster, axis= 0)
 
+            
+        
+            
+            #return the object for the evaluation
             all_centers[obj_id] = {
                 'center': obj_center,
-                'points': downsampled_points,
+                "points": len(largest_cluster),
                 "votes" : largest_cluster_votes
             }
-            print(all_centers[0])
+            #print(all_centers[0])
 
             return all_centers
  
+
+
+    
+
+        
+    def compute_statistics(self,scan_id):
+        #compute the centers
+        predicted_centers = self.compute_centers(scan_id)
+        #initialize the results
+        precisions = np.zeros((self.minimum_points, self.minimum_points))
+        recalls = np.zeros((self.minimum_points, self.minimum_points))
+        f1s = np.zeros((self.minimum_points, self.minimum_points))
+        false_positive_rates = np.zeros((self.minimum_points, self.minimum_points))
+
+        #access gt pointcenters
+        pklfile = osp.join(self.data_root_dir, 'files', 'orig', 'data', '{}.pkl'.format(scan_id))
+
+        with open(pklfile, "rb") as f:
+            # Load the data from the pickle file
+            data = pickle.load(f)
+            
+        # extract object points and IDs from the pickle data
+        gt_ids = data['objects_id']
+        gt_centers = data["object_centers"]
+    
+    
+        #calculate the different metrics
+        for min_vote in enumerate(self.minimum_votes):
+            for num_points in enumerate(self.minimum_points):
+                #filter the points based on the minvote and numpoints
+                predicted = {}
+                #initialize 
+                true_positives = 0
+                false_negatives = 0
+                false_positives = 0
+
+                #remove points which would not pass
+                for obj_id , obj_data in predicted_centers.items():
+                    votes = obj_data["votes"]
+                    num_points = obj_data["points"]
+                    #check if it is detectable by the parameters
+                                
+                    if any(votes >= min_vote) and any(num_points >= num_points):
+                        predicted[obj_id] = obj_data
+
+                matched_predicted_ids = set()
+                """ 
+                add logiv for newly seeno objects
+                """
+                #oke now compute the true posities and false negatives
+                for obj_id in gt_ids:
+                    if obj_id in gt_centers:
+                        gt_center = gt_centers[obj_id]
+                        matched = False
+
+                        for pred_id, pred_data in predicted.items():
+                            pred_center = pred_data['center']
+                            distance = np.linalg.norm(pred_center - gt_center)
+
+                            if distance <= 0.2:
+                                true_positives += 1
+                                matched = True
+                                matched_predicted_ids.add(pred_id)
+                                break  # Exit the loop once a match is found
+
+                        # If no prediction matched the ground truth center, count as false negative
+                        if not matched:
+                            false_negatives += 1
+
+                # Calculate false positives (predicted centers that did not match any ground truth center)
+                false_positives = len(predicted) - len(matched_predicted_ids)
+
+                # Total number of objects (ground truth) for computing the FPR
+                total_objects = len(gt_ids)
+
+                # Calculate precision, recall, and false positive rate
+                if true_positives + false_positives == 0:
+                    precision = 0.0
+                else:
+                    precision = true_positives / (true_positives + false_positives)
+
+                if true_positives + false_negatives == 0:
+                    recall = 0.0
+                else:
+                    recall = true_positives / (true_positives + false_negatives)
+
+                if total_objects == 0:
+                    false_positive_rate = 0.0
+                else:
+                    false_positive_rate = false_positives / (true_positives + false_positives + false_negatives)
+
+                
+                if precision + recall == 0:
+                    f1_score = 0.0
+                else:
+                    f1_score = 2 * (precision * recall) / (precision + recall)
+               
+                precisions[min_vote][num_points]= precision
+                recalls[min_vote][num_points] = recall
+                f1s[min_vote][num_points] =  f1_score
+
+        return precisions,recalls,f1s
+          
 
     def compute(self):
         workers = 2
