@@ -107,7 +107,7 @@ class Evaluator():
          
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split[1]
         else:
             self.scan_ids = ref_scans_split
 

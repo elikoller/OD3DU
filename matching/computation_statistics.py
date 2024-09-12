@@ -314,7 +314,90 @@ class Evaluator():
 
         return float(total_unique_comp) /total_unique_gt
         
+
+    def calculate_iou(mask1, mask2):
+        #intersection/ union of 2 masks -> iou score
+        intersection = np.logical_and(mask1, mask2).sum()
+        union = np.logical_or(mask1, mask2).sum()
+        if union == 0:
+            return 0
+        return intersection / union
+    
+
+        #iterate over the objects of the new image and make iou of the bigges gt object it represents
+    def compute_iou_metric_precision(self, gt_patches, computed_patches, new_objects):
+        #get the ids over which we will iterate
+        img_ids = np.unique(computed_patches)
+        ious = []
+
+        #iterate over them
+        for id in img_ids:
+            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
+         
+            #get the coordinates of this id
+            coords = np.argwehere(computed_patches == id)
+
+            #access the coords in the gt
+            gt_ids_at_coords = gt_patches([tuple(coords.T)])
+            #get the max id
+            gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
+            #check if it should be a new object 
+            if id < 0:
+                #if is new object but did not get detected
+                if gt_max_id not in new_objects:
+                    ious.append(0)
+                    continue
+
+            #create the masks for the iou computeaiton
+            compued_mask = (computed_patches == id)
+            gt_mask = (gt_patches == gt_max_id)
+
+            #compute the iou
+            iou_id = self.calculate_iou(compued_mask, gt_mask)
+            ious.append(iou_id)
+           
         
+
+        return np.mean(ious)
+
+
+    def compute_iou_metric_recall(self, gt_patches, computed_patches, new_objects):
+        gt_ids  = np.unique(gt_patches)
+        ious = []
+
+        #iterate over them
+        for id in gt_ids:
+            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
+         
+            #get the coordinates of this id
+            coords = np.argwehere(gt_patches == id)
+
+            #access the coords in the gt
+            computed_ids_at_coords = computed_patches([tuple(coords.T)])
+            #get the max id
+            computed_max_id = Counter(computed_ids_at_coords).most_common(1)[0][0]
+            #check if it should be a new object 
+            if id in new_objects:
+                #if is new object but did not get detected
+                if computed_max_id > 0:
+                    ious.append(0)
+                    continue
+
+            #create the masks for the iou computeaiton
+            gt_mask = (gt_patches == id)
+            computed_mask = (computed_patches == computed_max_id)
+
+            #compute the iou
+            iou_id = self.calculate_iou(gt_mask, computed_mask)
+            ious.append(iou_id)
+           
+        
+
+        return np.mean(ious)
+
+
+
+
       
 
     
@@ -494,6 +577,9 @@ class Evaluator():
         scan_cosine_new_obj_metric= []  
         scan_cosine_obj_metric= []  
         scan_cosine_patch_metric= []
+        scan_cosine_iou_metric_precision = []
+        scan_cosine_iou_metric_recall = []
+
 
      
         #now the frame
@@ -513,6 +599,8 @@ class Evaluator():
                 cosine_obj_metric = np.zeros((ths_len,k_means_len))
                 cosine__new_obj_metric = np.zeros((ths_len,k_means_len))
                 cosine_patch_metric = np.zeros((ths_len,k_means_len))
+                cosine_iou_metric_precision = np.zeros((ths_len,k_means_len))
+                cosine_iou_metric_recall = np.zeros((ths_len,k_means_len))
                 
 
                 #initialize the distances
@@ -566,13 +654,6 @@ class Evaluator():
                         #quantize to patchlevel of to be comparable to gt
                         cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
 
-
-                        #access the ground truth patches for this frame
-                        gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
-
-                        with open(gt_input_patchwise_path, 'rb') as file:
-                            gt_input_patchwise = pickle.load(file)
-
                         
                         #finally compute the accuracies: based on area and object ids and fill into the matrix
                         #for cosine
@@ -583,11 +664,16 @@ class Evaluator():
                             cosine__new_obj_metric[t_idx][k_idx] = self.compute_new_obj_metric(gt_patches,cosine_patch_level, new_objects)
 
                         cosine_patch_metric[t_idx][k_idx] = self.compute_patch_metric(gt_patches,cosine_patch_level, new_objects)
+                        cosine_iou_metric_precision[t_idx][k_idx] = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
+                        cosine_iou_metric_recall[t_idx][k_idx] = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
+
 
                 scan_cosine_obj_metric.append(cosine_obj_metric)
                 if frame_has_new_obj:
                     scan_cosine_new_obj_metric.append(cosine__new_obj_metric)
                 scan_cosine_patch_metric.append(cosine_patch_metric)
+                scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
+                scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
 
         
 
@@ -596,13 +682,15 @@ class Evaluator():
              print("scanid wth new object", scan_id)      
                 
                         
-        return scan_cosine_obj_metric, scan_cosine_new_obj_metric, scan_cosine_patch_metric
+        return scan_cosine_obj_metric, scan_cosine_new_obj_metric, scan_cosine_patch_metric, scan_cosine_iou_metric_precision, scan_cosine_iou_metric_recall
 
     def compute(self, mode):
         #prepare the matricies for the 4 different metrics
         all_cosine_obj_metric = []
         all_cosine_new_obj_metric = []
         all_cosine_patch_metric = []
+        all_cosine_iou_metric_precision = []
+        all_cosine_iou_metric_recall = []
        
      
 
@@ -617,13 +705,15 @@ class Evaluator():
                 for future in concurrent.futures.as_completed(futures):
                     scan_id = futures[future]
                     try:
-                        cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric = future.result()
+                        cosine_obj_metric, cosine_new_obj_metric, cosine_patch_metric, cosine_iou_metric_precision, cosine_iou_metric_recall = future.result()
                         
                        # get the result matricies
                         all_cosine_obj_metric.extend(cosine_obj_metric)
                         all_cosine_patch_metric.extend(cosine_patch_metric)
                         if len(cosine_new_obj_metric) > 0:
                             all_cosine_new_obj_metric.extend(cosine_new_obj_metric)
+                        all_cosine_iou_metric_precision.extend(cosine_iou_metric_precision)
+                        all_cosine_iou_metric_recall.extend(cosine_iou_metric_recall)
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")
@@ -656,16 +746,21 @@ class Evaluator():
         mean_cosine_obj_metric = np.mean(np.array(all_cosine_obj_metric), axis= 0)
         mean_cosine_new_obj_metric = np.mean(np.array(all_cosine_new_obj_metric), axis=0)
         mean_cosine_patch_metric = np.mean(np.array(all_cosine_patch_metric), axis=0)
-        
+        mean_cosine_iou_metric_precision = np.mean(np.array(all_cosine_iou_metric_precision), axis=0)
+        mean_cosine_iou_metric_recall = np.mean(np.array(all_cosine_iou_metric_recall), axis=0)
+       
         print("obj", mean_cosine_obj_metric)
         print("new", mean_cosine_new_obj_metric)
         print("patch", mean_cosine_patch_metric)
-       
+        print("precision", mean_cosine_iou_metric_precision)
+        print("recall", mean_cosine_iou_metric_recall)      
 
         #create sesult dict
         result = {"cosine_obj_metric": mean_cosine_obj_metric,
                   "cosine_new_obj_metric" : mean_cosine_new_obj_metric,
-                  "cosine_patch_metric": mean_cosine_patch_metric
+                  "cosine_patch_metric": mean_cosine_patch_metric,
+                  "cosine_iou_metric_precision": mean_cosine_iou_metric_precision,
+                  "cosine_iou_metric_recall": mean_cosine_iou_metric_recall
                 }
                   
         #save the file in the results direcrtory
