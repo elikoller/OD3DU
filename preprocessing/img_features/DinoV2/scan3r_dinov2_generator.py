@@ -179,13 +179,13 @@ class Scan3rDinov2Generator():
         common.ensure_dir(self.out_dir_median)
 
          #since we stopped the computation look which ones are not done yet
-        # if(self.dino):
-        #     for done_scan in self.all_scans_split:   
-        #         path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
-        #         path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
-        #         path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
-        #         if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
-        #             self.all_scans_split.remove(done_scan)
+        if(self.dino):
+            for done_scan in self.all_scans_split:   
+                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
+                path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
+                path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
+                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
+                    self.all_scans_split.remove(done_scan)
         
 
         # if(self.proj):
@@ -596,13 +596,13 @@ def main():
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
-    scan3r_gcvit_generator.register_model()
-    scan3r_gcvit_generator.generateFeatures()
-    #also generate for the dino_:segmentation boundingboxes
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
+    #also generate for the dino_:segmentation boundingboxes
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    scan3r_gcvit_generator.register_model()
+    scan3r_gcvit_generator.generateFeatures()
 
    
     

@@ -107,7 +107,7 @@ class Evaluator():
          
 
         if self.rescan:
-            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
@@ -119,7 +119,7 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Predicted_Matches" )
+        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
         common.ensure_dir(self.out_dir)
 
      

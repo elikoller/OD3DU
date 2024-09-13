@@ -150,37 +150,39 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     y = vertex_array[:, 1]
     z = vertex_array[:, 2]
     object_ids_mesh = vertex_array[:, 6]  # Assuming 'objectId' is the 7th property
-
+    #add the bounding boxes for the ids
+    bounding_boxes = {}
+    object_id_pkl = objects_ids
     unique_object_ids = np.unique(object_ids_mesh)
-
-    bounding_boxes_tmp = {}
+    
+    
     centroids = {}
     #go over every id and compute the box
     for obj_id in unique_object_ids:
-                    #we want the same ids for the boxes
-                    if obj_id in object_id_pkl:
-                            # Filter vertices by object ID
-                            obj_mask = object_ids_mesh == obj_id
-                            obj_coords = np.vstack((x[obj_mask], y[obj_mask], z[obj_mask])).T
+        #we want the same ids for the boxes
+        if obj_id in object_id_pkl:
+           
+                # Filter vertices by object ID
+                obj_mask = object_ids_mesh == obj_id
+                obj_coords = np.vstack((x[obj_mask], y[obj_mask], z[obj_mask])).T
 
-                            min_coords = np.min(obj_coords, axis=0)
-                            max_coords = np.max(obj_coords, axis=0)
+                min_coords = np.min(obj_coords, axis=0)
+                max_coords = np.max(obj_coords, axis=0)
 
-                            corners = np.array([
-                            [max_coords[0], max_coords[1], min_coords[2]], #0
-                            [min_coords[0], max_coords[1], min_coords[2]], #1
-                            [min_coords[0], min_coords[1], min_coords[2]], #2
-                            [max_coords[0], min_coords[1], min_coords[2]], #3
-                            [max_coords[0], max_coords[1], max_coords[2]] , #4
-                            [min_coords[0], max_coords[1], max_coords[2]], #5
-                            [min_coords[0], min_coords[1], max_coords[2]], #6
-                            [max_coords[0], min_coords[1], max_coords[2]], #7  
-                            ])
-                            bounding_boxes_tmp[obj_id] = corners
-
-                            #also compute the centroid
-                            centroid = np.mean(obj_coords, axis=0)
-                            centroids[obj_id] = centroid
+                corners = np.array([
+                [max_coords[0], max_coords[1], min_coords[2]], #0
+                [min_coords[0], max_coords[1], min_coords[2]], #1
+                [min_coords[0], min_coords[1], min_coords[2]], #2
+                [max_coords[0], min_coords[1], min_coords[2]], #3
+                [max_coords[0], max_coords[1], max_coords[2]] , #4
+                [min_coords[0], max_coords[1], max_coords[2]], #5
+                [min_coords[0], min_coords[1], max_coords[2]], #6
+                [max_coords[0], min_coords[1], max_coords[2]], #7  
+                ])
+                bounding_boxes[obj_id] = corners
+                #also compute the centroid
+                centroid = np.mean(obj_coords, axis=0)
+                centroids[obj_id] = centroid
    
 
     # Root Object - object with highest outgoing degree
@@ -236,7 +238,7 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     data_dict['root_obj_id'] = root_obj_id
     #modified by elena
     data_dict['bounding_boxes'] = bounding_boxes 
-    data_dict["object_centers"] = centroid
+    data_dict["object_centers"] = centroids
     return data_dict
 
 def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'train', data_file = 'data'):

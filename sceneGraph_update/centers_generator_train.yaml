@@ -21,5 +21,5 @@ parameters:
     voxel_size_overlap: 0.15 #for faster computation
     minimum_points: [10,20,30,40,50]
     minimum_votes: [3,4,5,6,7,8]
-    overlatp_th: 0.3
+    overlap_th: 0.5
            

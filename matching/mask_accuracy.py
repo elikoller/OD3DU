@@ -95,7 +95,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split[:229]:
+        for ref_scan in ref_scans_split:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]

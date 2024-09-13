@@ -164,7 +164,7 @@ class Evaluator():
     #return an object with the structure:scan_id: frame_number: frame_obj_id: matched id
     def read_matching_data(self, scan_id):
         # get the file and iterate through everything to create an object
-        matchfile = osp.join(self.data_root_dir, "Predicted_Matches", scan_id + ".h5")
+        matchfile = osp.join("/media/ekoller/T7/Predicted_Matches", scan_id + ".h5")
         with h5py.File(matchfile, 'r') as hdf_file:
             loaded_matches = {}
             

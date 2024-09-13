@@ -105,9 +105,11 @@ class Evaluator():
 
         # print("reference scans ", np.array(ref_scans_split))
         # print("rescans ", self.all_scans_split)
+        #this way we always work with the same things
+        self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
@@ -419,7 +421,7 @@ class Evaluator():
 
 
     def compute_scan(self,scan_id, mode):
-        print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
+        #print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
         # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
@@ -468,10 +470,10 @@ class Evaluator():
         #find out which objects have not been present in the reference scene ( not only frame!)
         present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
         present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-        print("presetn obj", present_obj_reference)
-        print("new obj", present_obj_scan)
+        # print("presetn obj", present_obj_reference)
+        # print("new obj", present_obj_scan)
         new_objects = list(set(present_obj_scan) - set(present_obj_reference))
-        print("unseen obj", new_objects)
+        # print("unseen obj", new_objects)
 
         #init the result for this scan_id
         #this bool needed for later
@@ -583,7 +585,7 @@ class Evaluator():
        
      
 
-        workers = 3
+        workers = 2
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
