@@ -109,7 +109,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split[120:]
         else:
             self.scan_ids = ref_scans_split
 
@@ -121,7 +121,7 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Results" )
+        self.out_dir = "/media/ekoller/T7/Results" #osp.join("/media/ekoller/T7", "Results")
         common.ensure_dir(self.out_dir)
 
      
@@ -228,7 +228,7 @@ class Evaluator():
         #get the ids over which we will iterate
         img_ids = np.unique(computed_patches)
         ious = []
-
+        
         #iterate over them
         for id in img_ids:
             #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
@@ -240,7 +240,7 @@ class Evaluator():
             gt_ids_at_coords = gt_patches[tuple(coords.T)]
             #get the max id
             gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
-
+            
             #if the gt id is 0 we have no info
             if gt_max_id != 0:
                 #check if it should be a new object 
@@ -249,30 +249,48 @@ class Evaluator():
                     if gt_max_id not in new_objects:
                         ious.append(0)
                         continue
+                    #case predicted new and gt_max also belongs to new obj
+                    #create the masks for the iou computeaiton
+                    #since the ids do not match filter the ids individually
+                    compued_mask = (computed_patches == id)
+                    gt_mask = (gt_patches == gt_max_id)
 
-                #create the masks for the iou computeaiton
-                compued_mask = (computed_patches == id)
-                gt_mask = (gt_patches == gt_max_id)
+                    #compute the iou
+                    iou_id = self.calculate_iou(compued_mask, gt_mask)
+                    ious.append(iou_id)
 
-                #compute the iou
-                iou_id = self.calculate_iou(compued_mask, gt_mask)
-                ious.append(iou_id)
-           
+                #we look at a seen object
+                else:
+                    #the predicted id does not match the gt so already wront
+                    if id != gt_max_id:
+                        ious.append(0)
+                        continue
+                    #the object ids overlap so find the iou
+                    #create the masks for the iou computeaiton
+                    compued_mask = (computed_patches == id)
+                    gt_mask = (gt_patches == gt_max_id)
+
+                    #compute the iou
+                    iou_id = self.calculate_iou(compued_mask, gt_mask)
+                    ious.append(iou_id)
         
+        if(len(ious) == 0):
+            return np.nan
 
-        return np.mean(ious)
+        return np.nanmean(ious)
 
 
     def compute_iou_metric_recall(self, gt_patches, computed_patches, new_objects):
         gt_ids  = np.unique(gt_patches)
         ious = []
-
+       
         #iterate over them
         for id in gt_ids:
             #only do actual objects - not 0 id
+           
             if id != 0:
                 #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
-            
+     
                 #get the coordinates of this id
                 coords = np.argwhere(gt_patches == id)
 
@@ -280,23 +298,44 @@ class Evaluator():
                 computed_ids_at_coords = computed_patches[tuple(coords.T)]
                 #get the max id
                 computed_max_id = Counter(computed_ids_at_coords).most_common(1)[0][0]
-                #check if it should be a new object 
+                #check if it should be a new object
+                # gt new obj 
+                
                 if id in new_objects:
-                    #if is new object but did not get detected
+                    #if is new object but did not get predicted as unseen
                     if computed_max_id > 0:
+                      
                         ious.append(0)
                         continue
 
-                #create the masks for the iou computeaiton
-                gt_mask = (gt_patches == id)
-                computed_mask = (computed_patches == computed_max_id)
+                    #create the masks for the iou computeaiton
+                    gt_mask = (gt_patches == id)
+                    computed_mask = (computed_patches == computed_max_id)
 
-                #compute the iou
-                iou_id = self.calculate_iou(gt_mask, computed_mask)
-                ious.append(iou_id)
-           
+
+                    #compute the iou
+                    iou_id = self.calculate_iou(gt_mask, computed_mask)
+                   
+                    ious.append(iou_id)
+                #we are talking about a seen object
+                else:
+                    #not the correct predicted id
+                    if id != computed_max_id:
+                      
+                        ious.append(0)
+                        continue
+                     #create the masks for the iou computeaiton
+                    gt_mask = (gt_patches == id)
+                    computed_mask = (computed_patches == computed_max_id)
+
+                    #compute the iou
+                    iou_id = self.calculate_iou(gt_mask, computed_mask)
+                  
+                    ious.append(iou_id)
+
+        if(len(ious) == 0):
+            return np.nan
         
-
         return np.mean(ious)
 
 
@@ -560,12 +599,16 @@ class Evaluator():
                         cosine_iou_metric_precision[t_idx][k_idx] = precision
                         cosine_iou_metric_recall[t_idx][k_idx] = recall
                         f1 = 0 #formula 2*(precision*recall)/(precision+recall)
-                        if (precision+ recall) == 0:
-                            f1 = 0.0
-                        else:
-                            f1 = 2 * (precision * recall) / (precision + recall)
+                        if (not np.isnan(precision)) and (not np.isnan(recall)): 
+                            if (precision+ recall) == 0:
+                                f1 = 0.0
+                            else:
+                                f1 = 2 * (precision * recall) / (precision + recall)
 
-                        cosine_metric_f1[t_idx][k_idx] = f1
+                            cosine_metric_f1[t_idx][k_idx] = f1
+                        #we got a nan value
+                        else:
+                            cosine_metric_f1[t_idx][k_idx] = np.nan
            
                 scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
                 scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
@@ -575,7 +618,7 @@ class Evaluator():
 
             
                         
-        return  scan_cosine_iou_metric_precision, scan_cosine_iou_metric_recall, scan_cosine_metric_f1
+        return  np.nanmean(scan_cosine_iou_metric_precision,axis=0), np.nanmean(scan_cosine_iou_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
 
     def compute(self, mode):
         #prepare the matricies for the 4 different metrics
@@ -583,33 +626,41 @@ class Evaluator():
         all_cosine_iou_metric_recall = []
         all_cosine_iou_metric_f1 = []
        
-     
-
-        workers = 2
-        
-        # parallelize the computations
-        with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.compute_scan, scan_id, mode): scan_id for scan_id in self.scan_ids}
+    
+        # Use tqdm for progress bar, iterating as tasks are completed
+        with tqdm(total=len(self.scan_ids)) as pbar:
+            for scan_id in self.scan_ids:
+                print("scanid", scan_id)
+                cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.compute_scan(scan_id,mode)
+                
+                # get the result matricies
+                all_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
+                all_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
+                all_cosine_iou_metric_f1.append(cosine_metric_f1)
+                print("added results of scan id ", scan_id, " successfully")
             
-            # Use tqdm for progress bar, iterating as tasks are completed
-            with tqdm(total=len(self.scan_ids)) as pbar:
-                for future in concurrent.futures.as_completed(futures):
-                    scan_id = futures[future]
-                    try:
-                        cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = future.result()
+                
+                # progressed
+                pbar.update(1)
+
+            # with tqdm(total=len(self.scan_ids)) as pbar:
+            #     for future in concurrent.futures.as_completed(futures):
+            #         scan_id = futures[future]
+            #         try:
+            #             cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = future.result()
                         
-                       # get the result matricies
-                        all_cosine_iou_metric_precision.extend(cosine_iou_metric_precision)
-                        all_cosine_iou_metric_recall.extend(cosine_iou_metric_recall)
-                        all_cosine_iou_metric_f1.extend(cosine_metric_f1)
-                        print("added results of scan id ", scan_id, " successfully")
-                    except Exception as exc:
-                        print(f"Scan {scan_id} generated an exception: {exc}")
-                        print("Traceback details:")
-                        traceback.print_exc()
+            #            # get the result matricies
+            #             all_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
+            #             all_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
+            #             all_cosine_iou_metric_f1.append(cosine_metric_f1)
+            #             print("added results of scan id ", scan_id, " successfully")
+            #         except Exception as exc:
+            #             print(f"Scan {scan_id} generated an exception: {exc}")
+            #             print("Traceback details:")
+            #             traceback.print_exc()
                     
-                    # progressed
-                    pbar.update(1)
+            #         # progressed
+            #         pbar.update(1)
 
         # new_obj = []
         # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
@@ -631,24 +682,24 @@ class Evaluator():
 
         print("writing the file")
         #we want the result over all scenes
-        mean_cosine_iou_metric_precision = np.mean(np.array(all_cosine_iou_metric_precision), axis=0)
-        mean_cosine_iou_metric_recall = np.mean(np.array(all_cosine_iou_metric_recall), axis=0)
-        mean_cosine_metric_f1 = np.mean(np.array(all_cosine_iou_metric_f1), axis= 0)
+        # mean_cosine_iou_metric_precision = np.mean(np.array(all_cosine_iou_metric_precision), axis=0)
+        # mean_cosine_iou_metric_recall = np.mean(np.array(all_cosine_iou_metric_recall), axis=0)
+        # mean_cosine_metric_f1 = np.mean(np.array(all_cosine_iou_metric_f1), axis= 0)
       
-        print("precision", mean_cosine_iou_metric_precision)
-        print("recall", mean_cosine_iou_metric_recall) 
-        print("F1 score", mean_cosine_metric_f1)     
+        # print("precision", mean_cosine_iou_metric_precision)
+        # print("recall", mean_cosine_iou_metric_recall) 
+        # print("F1 score", mean_cosine_metric_f1)     
 
         #create sesult dict
-        result = {"cosine_iou_metric_precision": mean_cosine_iou_metric_precision,
-                  "cosine_iou_metric_recall": mean_cosine_iou_metric_recall,
-                  "cosine_mectric_f1": mean_cosine_metric_f1
+        result = {"cosine_iou_metric_precision": all_cosine_iou_metric_precision,
+                  "cosine_iou_metric_recall": all_cosine_iou_metric_recall,
+                  "cosine_mectric_f1": all_cosine_iou_metric_f1
                 }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_segmentation120to180.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 

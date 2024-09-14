@@ -107,7 +107,7 @@ class Evaluator():
          
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"]#self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
@@ -411,7 +411,7 @@ class Evaluator():
                 cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
                 all_matches[frame_idx] = cosine_majorities
                           
-        
+        print("all id matches", all_matches)
         # print(all_matches)
         #save the file in the results direcrtory
         result_file_path = osp.join(self.out_dir,scan_id +".h5")

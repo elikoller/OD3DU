@@ -313,7 +313,7 @@ class Evaluator():
       #for a given scene get the colours of the differnt object_ids
     def get_present_obj_ids(self, data_dir,scan_id):
         #access the mesh file to get the colour of the ids
-        mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.annotated.v2.ply")
+        mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
         ply_data = plyfile.PlyData.read(mesh_file)
         # Extract vertex data
         vertices = ply_data['vertex']
@@ -396,8 +396,9 @@ class Evaluator():
                     dino_id = boundingboxes["object_id"]
                     #print("frame ", frame_idx, " dino_id ", dino_id)
                     #get the matched id
-                    #print("matches frame ", frame_matches)
                     object_id = frame_matches[str(dino_id)]
+                    #print("matched id ", object_id)
+                    
                     
 
                     #isolate only the object pointcloud
@@ -406,6 +407,7 @@ class Evaluator():
                     if object_id > 0:
                         #now we need to find out if we add it to the pointcloud of the object it mapped to or not
                         if object_id not in all_clusters:
+                            #print("create first cluter obj_id ", object_id)
                             #there are no clusters & votes stored for this object jet
                             all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
                         #object already has pointclouds we need to see if we merge or add a new cluster
@@ -488,16 +490,18 @@ class Evaluator():
 
 
 
-
+        print("clusters keys", all_clusters.keys())
+        print("all clusters", all_clusters)
         #now that we have the lists of clusters we need to iterate over them and choose the biggest cluster, downsample it & take the average to predict the center
         #initialize final object
         all_centers = {}
         #iterte through the objects
-        for obj_id, clusters in enumerate(all_clusters):
+        for obj_id, clusters in all_clusters.items():
+            print("in the for loop with cluster id", obj_id)
             #get the cluster with the most points aka largest 
-            print(clusters)
+            print("clusters", clusters , "for object id " ,obj_id)
             #decide the most likely correct cluster based on votes first and then size
-            largest_cluster_data = max(all_clusters[object_id], key=lambda c: (c['votes'], len(c['cluster'])))
+            largest_cluster_data = max(all_clusters[obj_id], key=lambda c: (c['votes'], len(c['cluster'])))
             largest_cluster = largest_cluster_data['cluster']
             largest_cluster_votes = largest_cluster_data["votes"]
             #create the objec center
@@ -512,7 +516,7 @@ class Evaluator():
                 "points": len(largest_cluster),
                 "votes" : largest_cluster_votes
             }
-            #print(all_centers[0])
+            print(all_centers)
 
             return all_centers
  
@@ -521,8 +525,11 @@ class Evaluator():
     def is_in_boundingbox(self, center, boundingbox):
         min_coords = np.min(boundingbox, axis=0)
         max_coords = np.max(boundingbox, axis=0)
+        is_inside = (np.all(min_coords <= center) and np.all(center <= max_coords))
 
-        return ((min_coords[0] <= center[0] <= max_coords[0]) and (min_coords[1] <= center[1] <= max_coords[1]) and (min_coords[2] <= center[2] <= max_coords[2]))
+        if is_inside:
+            print("the object was inside")
+        return is_inside
 
 
 
@@ -578,6 +585,7 @@ class Evaluator():
                     if (votes >= min_vote) and (points >= num_points):
                         predicted[obj_id] = obj_data
 
+              
                 matched_predicted_ids = set()
                 """ 
                 add logiv for newly seeno objects
@@ -662,6 +670,9 @@ class Evaluator():
                 recalls[j][i] = recall
                 f1s[j][i] =  f1_score
 
+        print("precision",precisions)
+        print("recall",recalls)
+        print("f1 scores", f1s)
         return precisions,recalls,f1s
           
 
@@ -687,9 +698,9 @@ class Evaluator():
                         precision,recall, f1 = future.result()
                         
                        # get the result matricies
-                        all_precision.extend(precision)
-                        all_recall.extend(recall)
-                        all_f1.extend(f1)
+                        all_precision.append(precision)
+                        all_recall.append(recall)
+                        all_f1.append(f1)
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")
@@ -719,9 +730,9 @@ class Evaluator():
 
         print("writing the file")
         #we want the result over all scenes
-        mean_precision = np.mean(np.array(all_precision), axis=0)
-        mean_recall = np.mean(np.array(all_recall), axis=0)
-        mean_f1 = np.mean(np.array(all_f1), axis= 0)
+        mean_precision = np.mean(all_precision, axis=0)
+        mean_recall = np.mean(all_recall, axis=0)
+        mean_f1 = np.mean(all_f1, axis= 0)
       
         print("precision", mean_precision)
         print("recall", mean_recall) 
