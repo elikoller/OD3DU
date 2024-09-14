@@ -386,7 +386,7 @@ class Evaluator():
                                 overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                 # keep track of the most overlap cluste
-                                if overlap > 0.1 and overlap > max_overlap:
+                                if overlap > 0.5 and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
 
@@ -448,7 +448,7 @@ class Evaluator():
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                     # Track the cluster with the highest overlap
-                                    if overlap > 0.1 and overlap > max_overlap:
+                                    if overlap > 0.5 and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
                                         best_object_id = neg_key
@@ -519,11 +519,11 @@ class Evaluator():
         #initialize final object
         all_centers = {}
         #iterte through the objects
-        for obj_id, clusters in enumerate(all_clusters):
+        for obj_id, clusters in all_clusters.items():
             #get the cluster with the most points aka largest 
             print(clusters)
             #decide the most likely correct cluster based on votes first and then size
-            largest_cluster_data = max(all_clusters[object_id], key=lambda c: (c['votes'], len(c['cluster'])))
+            largest_cluster_data = max(all_clusters[obj_id], key=lambda c: (c['votes'], len(c['cluster'])))
             largest_cluster = largest_cluster_data['cluster']
             largest_cluster_votes = largest_cluster_data["votes"]
             #create pointcloud and downsample it
@@ -554,13 +554,13 @@ class Evaluator():
                 'points': downsampled_points,
                 "votes" : largest_cluster_votes
             }
-            print(all_centers[0])
+            
 
             return all_centers
  
 
     def compute(self):
-        workers = 2
+        workers = 1
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:

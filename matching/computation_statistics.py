@@ -109,7 +109,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split[120:]
+            self.scan_ids = ["0cac7672-8d6f-2d13-8d84-a0418e452bb7", "fcf66d8a-622d-291c-8429-0e1109c6bb26"]#self.all_scans_split[120:]
         else:
             self.scan_ids = ref_scans_split
 
@@ -699,7 +699,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation120to180.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_segmentation_randomtest.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 

@@ -60,6 +60,7 @@ class Evaluator():
         self.overlap_th = cfg.parameters.overlap_th
         self.voxel_size_downsampling = cfg.parameters.voxel_size_downsampling
         self.voxel_size_overlap = cfg.parameters.voxel_size_overlap
+        self.box_scale = cfg.parameters.box_scale
 
 
         #patch info 
@@ -490,8 +491,8 @@ class Evaluator():
 
 
 
-        print("clusters keys", all_clusters.keys())
-        print("all clusters", all_clusters)
+        # print("clusters keys", all_clusters.keys())
+        # print("all clusters", all_clusters)
         #now that we have the lists of clusters we need to iterate over them and choose the biggest cluster, downsample it & take the average to predict the center
         #initialize final object
         all_centers = {}
@@ -521,14 +522,42 @@ class Evaluator():
             return all_centers
  
 
-   
+    def create_smaller_boundingbox(large_bbox):
+       
+        # get the center of the large box
+        min_coords = np.min(large_bbox, axis=0)
+        max_coords = np.max(large_bbox, axis=0)
+        center = (min_coords + max_coords) / 2
+        
+        # get the halfdimensions
+        half_dims = (max_coords - min_coords) / 2
+        
+        # half dimensions of the boundingbox
+        small_half_dims = half_dims * self.box_scale_factor
+        
+        # define the smaller box
+        smaller_bbox = np.array([
+            center - small_half_dims,
+            center + small_half_dims
+        ])
+        
+        return smaller_bbox
+
     def is_in_boundingbox(self, center, boundingbox):
         min_coords = np.min(boundingbox, axis=0)
         max_coords = np.max(boundingbox, axis=0)
-        is_inside = (np.all(min_coords <= center) and np.all(center <= max_coords))
 
-        if is_inside:
-            print("the object was inside")
+        #create a smaller boundingbox within the larger on
+        center = (min_coords + max_coords) / 2
+        half_dims = (max_coords - min_coords) / 2
+        small_half_dims = half_dims * self.box_scale
+        min_small = center - small_half_dims
+        max_small = center + small_half_dims
+            
+        is_inside = (np.all(min_small <= center) and np.all(center <= max_small))
+
+        # if is_inside:
+        #     print("the object was inside")
         return is_inside
 
 
@@ -537,7 +566,7 @@ class Evaluator():
     def compute_statistics(self,scan_id):
         #compute the centers
         predicted_centers = self.compute_centers(scan_id)
-        print("predicted centers", predicted_centers)
+        #print("predicted centers", predicted_centers)
         #initialize the results
         precisions = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         recalls = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
@@ -607,7 +636,7 @@ class Evaluator():
                                 #access the center
                                 pred_center = predicted[obj_id]['center']
                                 distance = np.linalg.norm(pred_center - gt_center)
-                                print("distance", distance)
+                                #print("distance", distance)
 
                                 if self.is_in_boundingbox(pred_center, boundingbox):
                                     true_positives += 1
