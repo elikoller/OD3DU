@@ -17,7 +17,8 @@ model:
   name: DinoV2
 
 parameters: 
-    voxel_size: 0.125
-    minimum_points: 49
+    voxel_size: 0.2
+    minimum_points: 30
     minimum_votes: 3
+    overlap_threshold: 0.5
   

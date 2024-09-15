@@ -56,7 +56,8 @@ class Evaluator():
 
         #parameters
         self.voxel_size = cfg.parameters.voxel_size
-        self.minimum_points: cfg.parameters.minimum_points
+        self.minimum_points = cfg.parameters.minimum_points
+        self.overlap_th = cfg.parameters.overlap_threshold
 
 
         #patch info 
@@ -307,7 +308,7 @@ class Evaluator():
         
 
 
-    def compute_scan(self,scan_id):
+    def predict_objects_scan(self,scan_id):
 
     # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
@@ -386,7 +387,7 @@ class Evaluator():
                                 overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                 # keep track of the most overlap cluste
-                                if overlap > 0.5 and overlap > max_overlap:
+                                if overlap > self.overlap_th and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
 
@@ -448,7 +449,7 @@ class Evaluator():
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                     # Track the cluster with the highest overlap
-                                    if overlap > 0.5 and overlap > max_overlap:
+                                    if overlap > self.overlap_th and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
                                         best_object_id = neg_key
@@ -540,31 +541,33 @@ class Evaluator():
             #save everithing to be able to visualize it later :)
             #actually use the iterative thing for downsampling
              #create pointcloud and downsample it
-            point_cloud = o3d.geometry.PointCloud()
-            point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
+            # point_cloud = o3d.geometry.PointCloud()
+            # point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
             
-            # Downsample the point cloud using voxel grid filtering
-            downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
+            # # Downsample the point cloud using voxel grid filtering
+            # downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
             
-            #Convert downsampled point cloud back to a numpy array
-            downsampled_points = np.asarray(downsampled_pcd.points)
+            # #Convert downsampled point cloud back to a numpy array
+            # downsampled_points = np.asarray(downsampled_pcd.points)
         
             all_centers[obj_id] = {
                 'center': obj_center,
-                'points': downsampled_points,
-                "votes" : largest_cluster_votes
+                'points': largest_cluster,
+                'votes' : largest_cluster_votes,
+                'size': len(largest_cluster)
+
             }
             
 
             return all_centers
  
-
+    
     def compute(self):
         workers = 1
         
         # parallelize the computations
         with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.compute_scan, scan_id): scan_id for scan_id in self.scan_ids}
+            futures = {executor.submit(self.predict_objects_scan, scan_id): scan_id for scan_id in self.scan_ids}
             
             # Use tqdm for progress bar, iterating as tasks are completed
             with tqdm(total=len(self.scan_ids)) as pbar:
@@ -582,6 +585,7 @@ class Evaluator():
                                 obj_group.create_dataset('center', data=data['center'])
                                 obj_group.create_dataset('points', data=data['points'])
                                 obj_group.create_dataset('votes', data=data['votes'])
+                                obj_group.create_dataset('size', data=data['size'])
                         print("added results of scan id ", scan_id, " successfully")
                     except Exception as exc:
                         print(f"Scan {scan_id} generated an exception: {exc}")

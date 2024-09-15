@@ -29,6 +29,7 @@ import numpy as np
 
 import os.path as osp
 import sys
+
 ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
 print(ws_dir)
 sys.path.append(ws_dir)
@@ -94,7 +95,7 @@ class Evaluator():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split[:1]:
+        for ref_scan in ref_scans_split[:]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -102,7 +103,7 @@ class Evaluator():
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
-
+        self.all_scans_split.sort()
         if self.rescan:
             self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
         else:
@@ -508,13 +509,12 @@ class Evaluator():
             #create the objec center
             obj_center = np.mean(largest_cluster, axis= 0)
 
-            
-        
-            
+           
+    
             #return the object for the evaluation
             all_centers[obj_id] = {
                 'center': obj_center,
-                "points": len(largest_cluster),
+                "size": len(largest_cluster),
                 "votes" : largest_cluster_votes
             }
             print(all_centers)
@@ -522,7 +522,7 @@ class Evaluator():
             return all_centers
  
 
-    def create_smaller_boundingbox(large_bbox):
+    def create_smaller_boundingbox(self,large_bbox):
        
         # get the center of the large box
         min_coords = np.min(large_bbox, axis=0)
@@ -533,7 +533,7 @@ class Evaluator():
         half_dims = (max_coords - min_coords) / 2
         
         # half dimensions of the boundingbox
-        small_half_dims = half_dims * self.box_scale_factor
+        small_half_dims = half_dims * self.box_scale
         
         # define the smaller box
         smaller_bbox = np.array([
@@ -559,13 +559,43 @@ class Evaluator():
         # if is_inside:
         #     print("the object was inside")
         return is_inside
+    
 
-
+    def read_predicted_data(self, scan_id):
+        all_centers= {}
+        filepath = osp.join("/media/ekoller/T7/Predicted_Centers",scan_id + ".pkl")
+        with h5py.File(filepath, 'r') as h5file:
+            # Iterate through each object group
+            for obj_id in h5file.keys():
+                # Get the group corresponding to the object id
+                obj_group = h5file[obj_id]
+                
+                # Retrieve data for center, points, votes, and size
+                center = obj_group['center'][:]
+                points = obj_group['points'][:]
+                votes = obj_group['votes'][:]
+                size = obj_group['size'][()]
+                
+                # Store the data back into the dictionary
+                all_centers[int(obj_id)] = {
+                    'center': center,
+                    'points': points,
+                    'votes': votes,
+                    'size': size
+                }
+        return all_centers
 
         
     def compute_statistics(self,scan_id):
-        #compute the centers
-        predicted_centers = self.compute_centers(scan_id)
+        #compute the centers if needed
+        if self.split == "train":
+            predicted_centers = self.compute_centers(scan_id)
+
+        #read the data for the test set
+        if self.split == "test":
+            predicted_centers = self.read_predicted_data(scan_id)
+
+
         #print("predicted centers", predicted_centers)
         #initialize the results
         precisions = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
@@ -608,7 +638,7 @@ class Evaluator():
                 #remove points which would not pass
                 for obj_id , obj_data in predicted_centers.items():
                     votes = obj_data["votes"]
-                    points = obj_data["points"]
+                    points = obj_data["size"]
                     #check if it is detectable by the parameters
                                 
                     if (votes >= min_vote) and (points >= num_points):
@@ -616,9 +646,7 @@ class Evaluator():
 
               
                 matched_predicted_ids = set()
-                """ 
-                add logiv for newly seeno objects
-                """
+                
                 # print("gt_ids", gt_ids)
                 # print("gt center keys", gt_centers.keys())
                 # print("gt_boxes keys", gt_boxes.keys())
@@ -665,7 +693,7 @@ class Evaluator():
 
                         if closest_pred_id is not None:
                             if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
-                                print("closest dist new", closest_distance)
+                                #print("closest dist new", closest_distance)
                                 true_positives += 1
                                 matched_predicted_ids.add(closest_pred_id)
                                 matched = True
@@ -711,33 +739,50 @@ class Evaluator():
         all_recall = []
         all_f1 = []
        
-     
+        # Use tqdm for progress bar, iterating as tasks are completed
+        with tqdm(total=len(self.scan_ids)) as pbar:
+            for scan_id in self.scan_ids:
+                print("scanid", scan_id)
+                precisions, recalls, f1s = self.compute_statistics(scan_id)
+                
+                # get the result matricies
+                all_precision.append(precisions)
+                all_recall.append(recalls)
+                all_f1.append(f1s)
+                print("added results of scan id ", scan_id, " successfully")
+            
+                
+                # progressed
+                pbar.update(1)
 
-        workers = 2
+
+
+
+        # workers = 2
         
         # parallelize the computations
-        with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.compute_statistics, scan_id): scan_id for scan_id in self.scan_ids}
+        # with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
+        #     futures = {executor.submit(self.compute_statistics, scan_id): scan_id for scan_id in self.scan_ids}
             
-            # Use tqdm for progress bar, iterating as tasks are completed
-            with tqdm(total=len(self.scan_ids)) as pbar:
-                for future in concurrent.futures.as_completed(futures):
-                    scan_id = futures[future]
-                    try:
-                        precision,recall, f1 = future.result()
+        #     # Use tqdm for progress bar, iterating as tasks are completed
+        #     with tqdm(total=len(self.scan_ids)) as pbar:
+        #         for future in concurrent.futures.as_completed(futures):
+        #             scan_id = futures[future]
+        #             try:
+        #                 precision,recall, f1 = future.result()
                         
-                       # get the result matricies
-                        all_precision.append(precision)
-                        all_recall.append(recall)
-                        all_f1.append(f1)
-                        print("added results of scan id ", scan_id, " successfully")
-                    except Exception as exc:
-                        print(f"Scan {scan_id} generated an exception: {exc}")
-                        print("Traceback details:")
-                        traceback.print_exc()
+        #                # get the result matricies
+        #                 all_precision.append(precision)
+        #                 all_recall.append(recall)
+        #                 all_f1.append(f1)
+        #                 print("added results of scan id ", scan_id, " successfully")
+        #             except Exception as exc:
+        #                 print(f"Scan {scan_id} generated an exception: {exc}")
+        #                 print("Traceback details:")
+        #                 traceback.print_exc()
                     
-                    # progressed
-                    pbar.update(1)
+        #             # progressed
+        #             pbar.update(1)
 
         # new_obj = []
         # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
@@ -752,27 +797,28 @@ class Evaluator():
 
         # print("array of references with new obj", new_obj)
         
-
-
-       
-
-
         print("writing the file")
         #we want the result over all scenes
-        mean_precision = np.mean(all_precision, axis=0)
-        mean_recall = np.mean(all_recall, axis=0)
-        mean_f1 = np.mean(all_f1, axis= 0)
+        # mean_precision = np.mean(all_precision, axis=0)
+        # mean_recall = np.mean(all_recall, axis=0)
+        # mean_f1 = np.mean(all_f1, axis= 0)
       
-        print("precision", mean_precision)
-        print("recall", mean_recall) 
-        print("F1 score", mean_f1)     
+        # print("precision", mean_precision)
+        # print("recall", mean_recall) 
+        # print("F1 score", mean_f1)     
 
         #create sesult dict
-        result = {"precision": mean_precision,
-                  "recall": mean_recall,
-                  "f1": mean_f1
+        # result = {"precision": mean_precision,
+        #           "recall": mean_recall,
+        #           "f1": mean_f1
+        #         }
+
+        result = {"precision": all_precision,
+                  "recall": all_recall,
+                  "f1": all_f1
                 }
                   
+        print("result", result)
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,"overlap_0.5")
         common.ensure_dir(result_dir)

@@ -9,5 +9,5 @@ source $CONDA_BIN/activate BT
 cd $VLSG_SPACE
 
 # generate patch-level features with Dinov2
-python ./sceneGraph_update/generate_obj_centers.py \
-    --config ./sceneGraph_update/centers_generator.yaml
+python ./sceneGraph_update/predict_objects.py \
+    --config ./sceneGraph_update/object_predictor.yaml

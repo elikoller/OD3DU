@@ -43,6 +43,7 @@ this currently takes only one rescan per reference scene into consideration
 class Evaluator():
     def __init__(self, cfg, split):
         self.cfg = cfg
+        self.split = split
         # 3RScan data info
         self.split = split
         ## data dir
@@ -109,7 +110,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = ["0cac7672-8d6f-2d13-8d84-a0418e452bb7", "fcf66d8a-622d-291c-8429-0e1109c6bb26"]#self.all_scans_split[120:]
+            self.scan_ids = self.all_scans_split[:60]
         else:
             self.scan_ids = ref_scans_split
 
@@ -164,7 +165,7 @@ class Evaluator():
 
         return majorities
 
-    def generate_pixel_level(self, segmentation,frame_obj_ids,majorities):
+    def generate_pixel_level(self, segmentation,majorities):
         pixel_ids = np.zeros((self.image_height, self.image_width))
 
         #iterate through all the segmentation regions of the dino segmentation
@@ -458,8 +459,129 @@ class Evaluator():
                 features[frame_idx] = bounding_boxes
         return features
 
+    def read_matching_data(self,scan_id):
+        # get the file and iterate through everything to create an object
+        matchfile = osp.join("/media/ekoller/T7/Predicted_Matches", scan_id + ".h5")
+        with h5py.File(matchfile, 'r') as hdf_file:
+            loaded_matches = {}
+            
+            # Iterate through frame indices
+            for frame_idx in hdf_file.keys():
+                matches = {}
+                
+                # Access the group for each frame index
+                frame_group = hdf_file[frame_idx]
+                
+                # Load the frame_id -> obj mappings
+                for frame_id in frame_group.keys():
+                    obj = frame_group[frame_id][()]
+                    matches[frame_id] = int(obj)  # Convert back to int
+                
+                loaded_matches[frame_idx] = matches 
 
+        return loaded_matches
+    
+
+
+    def eval_scan(self,scan_id, mode):
+        
+        #print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
+        # Load image paths and frame indices
+        frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
+        frame_idxs_list.sort()
+        #access the necessary data for the reference scene
+        reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
+        
+    
+
+        #access the segmentation of the scan_id
+        segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
+        segmentation_data = self.read_segmentation_data(segmentation_info_path)
+
+        #access the matched ids
+        predicted_ids = self.read_matching_data(scan_id)
+
+
+        #find out which objects have not been present in the reference scene ( not only frame!)
+        present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
+        present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
+        # print("presetn obj", present_obj_reference)
+        # print("new obj", present_obj_scan)
+        new_objects = list(set(present_obj_scan) - set(present_obj_reference))
+       
+      
+        scan_cosine_iou_metric_precision = []
+        scan_cosine_iou_metric_recall = []
+        scan_cosine_metric_f1 = []
+
+
+     
+        #now the frame
+        for infer_step_i in range(0, len(frame_idxs_list) // self.inference_step + 1):
+            start_idx = infer_step_i * self.inference_step
+            end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
+            frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
+
+        
+            for frame_idx in frame_idxs_sublist:
+                #initialze the matricies we will fill
+                #get the lengths of the parameters
+                ths_len = len(self.ths)
+                k_means_len = len(self.k_means)
+
+                #initialize the resultmatrix for this frame
+                cosine_iou_metric_precision = np.zeros((ths_len,k_means_len))
+                cosine_iou_metric_recall = np.zeros((ths_len,k_means_len))
+                cosine_metric_f1 = np.zeros((ths_len,k_means_len))
+            
+
+                #access the gt for this frame
+                gt_input_patchwise_path =  osp.join(self.scans_files_dir,"patch_anno","patch_anno_{}_{}".format(self.image_patch_w,self.image_patch_h),"{}.pkl".format(scan_id))
+
+                with open(gt_input_patchwise_path, 'rb') as file:
+                    gt_input_patchwise = pickle.load(file)
+
+                gt_patches = gt_input_patchwise[frame_idx]
+
+    
+                #get the correct computations and iteraste through every combination
+                for t_idx, th in enumerate (self.ths):
+                    for k_idx, k in enumerate (self.k_means):
+                    
+                        #translate the matched object ids to pixellevel of the frame
+                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx])
+                        
+                        #quantize to patchlevel of to be comparable to gt
+                        cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
+
+                        
+                        #finally compute the accuracies: based on area and object ids and fill into the matrix
+                        precision = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
+                        recall = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
+                        cosine_iou_metric_precision[t_idx][k_idx] = precision
+                        cosine_iou_metric_recall[t_idx][k_idx] = recall
+                        f1 = 0 #formula 2*(precision*recall)/(precision+recall)
+                        if (not np.isnan(precision)) and (not np.isnan(recall)): 
+                            if (precision+ recall) == 0:
+                                f1 = 0.0
+                            else:
+                                f1 = 2 * (precision * recall) / (precision + recall)
+
+                            cosine_metric_f1[t_idx][k_idx] = f1
+                        #we got a nan value
+                        else:
+                            cosine_metric_f1[t_idx][k_idx] = np.nan
+           
+                scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
+                scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
+                scan_cosine_metric_f1.append(cosine_metric_f1)
+
+        
+        return  np.nanmean(scan_cosine_iou_metric_precision,axis=0), np.nanmean(scan_cosine_iou_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
+
+    
     def compute_scan(self,scan_id, mode):
+        
         #print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
         # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
@@ -631,8 +753,11 @@ class Evaluator():
         with tqdm(total=len(self.scan_ids)) as pbar:
             for scan_id in self.scan_ids:
                 print("scanid", scan_id)
-                cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.compute_scan(scan_id,mode)
+                if self.split == "train":
+                    cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.compute_scan(scan_id,mode)
                 
+                if self.split == "test":
+                    cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.eval_scan(scan_id,mode)
                 # get the result matricies
                 all_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
                 all_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
@@ -699,7 +824,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation_randomtest.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_segmentation_0to60.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 

@@ -179,6 +179,12 @@ bash scripts/matching/computation.sh
 bash scripts/predicted_objects/predict_objects.sh
 ```
 
+## to evaluate and get a statistical perspective ot the predicted object centers
+
+```bash
+bash scripts/predicted_objects/predict_objects_statistics.sh
+```
+
 
 ## BibTeX :pray:
 ```
