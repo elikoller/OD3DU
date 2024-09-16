@@ -345,7 +345,7 @@ class Evaluator():
 
 
 
-    def compute_centers(self,scan_id):
+    def compute_centers(self,scan_id, overlap_threshold):
 
     # Load image paths and frame indices
         frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
@@ -425,7 +425,7 @@ class Evaluator():
                                 overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                 # keep track of the most overlap cluste
-                                if overlap > self.overlap_th and overlap > max_overlap:
+                                if overlap > overlap_threshold and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
 
@@ -469,7 +469,7 @@ class Evaluator():
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
                                     # Track the cluster with the highest overlap
-                                    if overlap > self.overlap_th and overlap > max_overlap:
+                                    if overlap > overlap_threshold and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
                                         best_object_id = neg_key
@@ -561,6 +561,35 @@ class Evaluator():
         return is_inside
     
 
+    def boundingbox_iou(boundingbox, pcl):
+        
+        # compute the intersection boundaries
+        min1 = np.min(boundingbox, axis=0)  
+        max1 = np.max(boundingbox, axis=0)  
+        
+        min2 = np.min(pcl, axis=0)  
+        max2 = np.max(pcl, axis=0)  
+        
+        # compute the intersection box
+        intersect_min = np.maximum(min1, min2) 
+        intersect_max = np.minimum(max1, max2)  
+        
+        # compute intersection box dimensions
+        intersect_dims = np.maximum(intersect_max - intersect_min, 0)  
+        intersection_volume = np.prod(intersect_dims)  
+        
+        # compute volumes of each bounding box
+        volume1 = np.prod(max1 - min1)  
+        volume2 = np.prod(max2 - min2)  
+        # computeunion volume
+        union_volume = volume1 + volume2 - intersection_volume
+        
+        # compute intersection
+        iou = intersection_volume / union_volume if union_volume > 0 else 0
+
+        return iou
+
+
     def read_predicted_data(self, scan_id):
         all_centers= {}
         filepath = osp.join("/media/ekoller/T7/Predicted_Centers",scan_id + ".pkl")
@@ -586,10 +615,10 @@ class Evaluator():
         return all_centers
 
         
-    def compute_statistics(self,scan_id):
+    def compute_statistics(self,scan_id, overlap):
         #compute the centers if needed
         if self.split == "train":
-            predicted_centers = self.compute_centers(scan_id)
+            predicted_centers = self.compute_centers(scan_id,overlap)
 
         #read the data for the test set
         if self.split == "test":
@@ -601,6 +630,7 @@ class Evaluator():
         precisions = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         recalls = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         f1s = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
+        boundingboxes = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         
 
         #access gt pointcenters
@@ -634,14 +664,15 @@ class Evaluator():
                 true_positives = 0
                 false_negatives = 0
                 false_positives = 0
+                ious = []
 
                 #remove points which would not pass
                 for obj_id , obj_data in predicted_centers.items():
                     votes = obj_data["votes"]
-                    points = obj_data["size"]
+                    size = obj_data["size"]
                     #check if it is detectable by the parameters
                                 
-                    if (votes >= min_vote) and (points >= num_points):
+                    if (votes >= min_vote) and (size >= num_points):
                         predicted[obj_id] = obj_data
 
               
@@ -670,6 +701,9 @@ class Evaluator():
                                     true_positives += 1
                                     matched = True
                                     matched_predicted_ids.add(obj_id)
+                                    #also look how well the predicted boundingbox overlaps
+                                    bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
+                                    ious.append(bbox_iou)
 
                         # If no prediction matched the ground truth center, count as false negative
                         if not matched:
@@ -697,6 +731,8 @@ class Evaluator():
                                 true_positives += 1
                                 matched_predicted_ids.add(closest_pred_id)
                                 matched = True
+                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
+                                ious.append(bbox_iou)
 
                         # If no prediction matched the ground truth center, count as false negative
                         if not matched:
@@ -722,109 +758,121 @@ class Evaluator():
                     f1_score = 0.0
                 else:
                     f1_score = 2 * (precision * recall) / (precision + recall)
+
+                if len(ious) > 0:
+                    avg_iou = sum(ious) / len(ious)
+                else:
+                    avg_iou = 0.0
                
                 precisions[j][i]= precision
                 recalls[j][i] = recall
                 f1s[j][i] =  f1_score
+                boundingboxes[j][i] = avg_iou
+
+  
 
         print("precision",precisions)
         print("recall",recalls)
         print("f1 scores", f1s)
-        return precisions,recalls,f1s
+        return precisions,recalls,f1s, boundingboxes
           
 
     def compute(self):
-       #prepare the matricies for the 4 different metrics
-        all_precision = []
-        all_recall = []
-        all_f1 = []
-       
-        # Use tqdm for progress bar, iterating as tasks are completed
-        with tqdm(total=len(self.scan_ids)) as pbar:
-            for scan_id in self.scan_ids:
-                print("scanid", scan_id)
-                precisions, recalls, f1s = self.compute_statistics(scan_id)
-                
-                # get the result matricies
-                all_precision.append(precisions)
-                all_recall.append(recalls)
-                all_f1.append(f1s)
-                print("added results of scan id ", scan_id, " successfully")
-            
-                
-                # progressed
-                pbar.update(1)
-
-
-
-
-        # workers = 2
+        for overlap in self.overlap_th:
+        #prepare the matricies for the 4 different metrics
+            all_precision = []
+            all_recall = []
+            all_f1 = []
+            all_boxes = []
         
-        # parallelize the computations
-        # with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-        #     futures = {executor.submit(self.compute_statistics, scan_id): scan_id for scan_id in self.scan_ids}
-            
-        #     # Use tqdm for progress bar, iterating as tasks are completed
-        #     with tqdm(total=len(self.scan_ids)) as pbar:
-        #         for future in concurrent.futures.as_completed(futures):
-        #             scan_id = futures[future]
-        #             try:
-        #                 precision,recall, f1 = future.result()
-                        
-        #                # get the result matricies
-        #                 all_precision.append(precision)
-        #                 all_recall.append(recall)
-        #                 all_f1.append(f1)
-        #                 print("added results of scan id ", scan_id, " successfully")
-        #             except Exception as exc:
-        #                 print(f"Scan {scan_id} generated an exception: {exc}")
-        #                 print("Traceback details:")
-        #                 traceback.print_exc()
+            # Use tqdm for progress bar, iterating as tasks are completed
+            with tqdm(total=len(self.scan_ids)) as pbar:
+                for scan_id in self.scan_ids:
+                    print("scanid", scan_id)
+                    precisions, recalls, f1s, bounsingboxes = self.compute_statistics(scan_id, overlap)
                     
-        #             # progressed
-        #             pbar.update(1)
-
-        # new_obj = []
-        # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
-        #     # print an array of scenes 
-        #     reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
-        #     present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
-        #     present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-        #     new_objects = list(set(present_obj_scan) - set(present_obj_reference))
-        #     if len(new_objects) > 0:
-        #         new_obj.append(reference_id)
+                    # get the result matricies
+                    all_precision.append(precisions)
+                    all_recall.append(recalls)
+                    all_f1.append(f1s)
+                    all_boxes.append(bounsingboxes)
+                    print("added results of scan id ", scan_id, " successfully")
+                
+                    
+                    # progressed
+                    pbar.update(1)
 
 
-        # print("array of references with new obj", new_obj)
+
+
+            # workers = 2
+            
+            # parallelize the computations
+            # with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
+            #     futures = {executor.submit(self.compute_statistics, scan_id): scan_id for scan_id in self.scan_ids}
+                
+            #     # Use tqdm for progress bar, iterating as tasks are completed
+            #     with tqdm(total=len(self.scan_ids)) as pbar:
+            #         for future in concurrent.futures.as_completed(futures):
+            #             scan_id = futures[future]
+            #             try:
+            #                 precision,recall, f1 = future.result()
+                            
+            #                # get the result matricies
+            #                 all_precision.append(precision)
+            #                 all_recall.append(recall)
+            #                 all_f1.append(f1)
+            #                 print("added results of scan id ", scan_id, " successfully")
+            #             except Exception as exc:
+            #                 print(f"Scan {scan_id} generated an exception: {exc}")
+            #                 print("Traceback details:")
+            #                 traceback.print_exc()
+                        
+            #             # progressed
+            #             pbar.update(1)
+
+            # new_obj = []
+            # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
+            #     # print an array of scenes 
+            #     reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
+            #     present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
+            #     present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
+            #     new_objects = list(set(present_obj_scan) - set(present_obj_reference))
+            #     if len(new_objects) > 0:
+            #         new_obj.append(reference_id)
+
+
+            # print("array of references with new obj", new_obj)
+            
+            print("writing the file")
+            #we want the result over all scenes
+            # mean_precision = np.mean(all_precision, axis=0)
+            # mean_recall = np.mean(all_recall, axis=0)
+            # mean_f1 = np.mean(all_f1, axis= 0)
         
-        print("writing the file")
-        #we want the result over all scenes
-        # mean_precision = np.mean(all_precision, axis=0)
-        # mean_recall = np.mean(all_recall, axis=0)
-        # mean_f1 = np.mean(all_f1, axis= 0)
-      
-        # print("precision", mean_precision)
-        # print("recall", mean_recall) 
-        # print("F1 score", mean_f1)     
+            # print("precision", mean_precision)
+            # print("recall", mean_recall) 
+            # print("F1 score", mean_f1)     
 
-        #create sesult dict
-        # result = {"precision": mean_precision,
-        #           "recall": mean_recall,
-        #           "f1": mean_f1
-        #         }
+            #create sesult dict
+            # result = {"precision": mean_precision,
+            #           "recall": mean_recall,
+            #           "f1": mean_f1
+            #         }
 
-        result = {"precision": all_precision,
-                  "recall": all_recall,
-                  "f1": all_f1
-                }
-                  
-        print("result", result)
-        #save the file in the results direcrtory
-        result_dir = osp.join(self.out_dir,"overlap_0.5")
-        common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation.pkl")
-        common.write_pkl_data(result, result_file_path)
-        
+            result = {"precision": all_precision,
+                    "recall": all_recall,
+                    "f1": all_f1,
+                    "box_iou": all_boxes
+                    }
+                    
+            print("result", result)
+            #save the file in the results direcrtory
+            result_dir = osp.join(self.out_dir,"overlap_" + overlap)
+            common.ensure_dir(result_dir)
+            result_file_path = osp.join(result_dir,  "statistics_object_precidtion.pkl")
+            common.write_pkl_data(result, result_file_path)
+            
        
             
 def parse_args():
