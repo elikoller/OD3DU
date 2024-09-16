@@ -515,9 +515,11 @@ class Evaluator():
             all_centers[obj_id] = {
                 'center': obj_center,
                 "size": len(largest_cluster),
-                "votes" : largest_cluster_votes
+                "votes" : largest_cluster_votes,
+                "points": largest_cluster
+
             }
-            print(all_centers)
+            #print(all_centers)
 
             return all_centers
  
@@ -561,7 +563,7 @@ class Evaluator():
         return is_inside
     
 
-    def boundingbox_iou(boundingbox, pcl):
+    def boundingbox_iou(self,boundingbox, pcl):
         
         # compute the intersection boundaries
         min1 = np.min(boundingbox, axis=0)  
@@ -868,7 +870,7 @@ class Evaluator():
                     
             print("result", result)
             #save the file in the results direcrtory
-            result_dir = osp.join(self.out_dir,"overlap_" + overlap)
+            result_dir = osp.join(self.out_dir,"overlap_" + str(overlap))
             common.ensure_dir(result_dir)
             result_file_path = osp.join(result_dir,  "statistics_object_precidtion.pkl")
             common.write_pkl_data(result, result_file_path)
