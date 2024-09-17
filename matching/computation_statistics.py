@@ -122,7 +122,8 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = "/media/ekoller/T7/Results" #osp.join("/media/ekoller/T7", "Results")
+        self.out_dir = "/media/ekoller/T7/Results_2" #osp.join("/media/ekoller/T7", "Results")
+        print(self.out_dir)
         common.ensure_dir(self.out_dir)
 
      
@@ -709,7 +710,7 @@ class Evaluator():
                         # print("segmentation data", segmentation_data[frame_idx])
                         # print("frame obj ids", frame_obj_ids)
                         #translate the matched object ids to pixellevel of the frame
-                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],frame_obj_ids,cosine_majorities)
+                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],cosine_majorities)
                         
                         #quantize to patchlevel of to be comparable to gt
                         cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
