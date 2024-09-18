@@ -786,6 +786,10 @@ class Evaluator():
             all_recall = []
             all_f1 = []
             all_boxes = []
+            best_scan_id = 0
+            best_f1 = 0
+            box = 0 
+
         
             # Use tqdm for progress bar, iterating as tasks are completed
             with tqdm(total=len(self.scan_ids)) as pbar:
@@ -798,6 +802,11 @@ class Evaluator():
                     all_recall.append(recalls)
                     all_f1.append(f1s)
                     all_boxes.append(bounsingboxes)
+                    if self.split == "test":
+                        if f1s[0][0] > best_f1:
+                            best_f1 = f1s[0][0]
+                            best_scan_id = scan_id
+                            box = bounsingboxes[0][0]
                     print("added results of scan id ", scan_id, " successfully")
                 
                     
@@ -861,7 +870,8 @@ class Evaluator():
             #           "recall": mean_recall,
             #           "f1": mean_f1
             #         }
-
+            if self.split == "test":
+             print("the best performins scene is", best_scan_id, " with f1" , best_f1,  " and boxes", box)
             result = {"precision": all_precision,
                     "recall": all_recall,
                     "f1": all_f1,

@@ -110,7 +110,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split[:60]
+            self.scan_ids = self.all_scans_split[135:]
         else:
             self.scan_ids = ref_scans_split
 
@@ -122,7 +122,7 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = "/media/ekoller/T7/Results_2" #osp.join("/media/ekoller/T7", "Results")
+        self.out_dir = "/media/ekoller/T7/Results" #osp.join("/media/ekoller/T7", "Results")
         print(self.out_dir)
         common.ensure_dir(self.out_dir)
 
@@ -531,8 +531,8 @@ class Evaluator():
                 k_means_len = len(self.k_means)
 
                 #initialize the resultmatrix for this frame
-                cosine_iou_metric_precision = np.zeros((ths_len,k_means_len))
-                cosine_iou_metric_recall = np.zeros((ths_len,k_means_len))
+                cosine_metric_precision = np.zeros((ths_len,k_means_len))
+                cosine_metric_recall = np.zeros((ths_len,k_means_len))
                 cosine_metric_f1 = np.zeros((ths_len,k_means_len))
             
 
@@ -543,38 +543,86 @@ class Evaluator():
                     gt_input_patchwise = pickle.load(file)
 
                 gt_patches = gt_input_patchwise[frame_idx]
+                
 
     
                 #get the correct computations and iteraste through every combination
-                for t_idx, th in enumerate (self.ths):
-                    for k_idx, k in enumerate (self.k_means):
+                for t_idx in enumerate (self.ths):
+                    for k_idx in enumerate (self.k_means):
                     
                         #translate the matched object ids to pixellevel of the frame
                         cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx])
                         
                         #quantize to patchlevel of to be comparable to gt
-                        cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
+                        computed_patches = self.quantize_to_patch_level(cosine_pixel_level)
 
                         
-                        #finally compute the accuracies: based on area and object ids and fill into the matrix
-                        precision = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
-                        recall = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
-                        cosine_iou_metric_precision[t_idx][k_idx] = precision
-                        cosine_iou_metric_recall[t_idx][k_idx] = recall
-                        f1 = 0 #formula 2*(precision*recall)/(precision+recall)
-                        if (not np.isnan(precision)) and (not np.isnan(recall)): 
-                            if (precision+ recall) == 0:
-                                f1 = 0.0
-                            else:
-                                f1 = 2 * (precision * recall) / (precision + recall)
+                        img_ids = np.unique(computed_patches)
+                        #initialize everything
+                        tp, fp, fn = 0, 0, 0
+                        detected_gt_ids = set()
+            
+                        #iterate over the predicted images
+                        for id in img_ids:
+                            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
+                        
+                            #get the coordinates of this id
+                            coords = np.argwhere(computed_patches == id)
 
-                            cosine_metric_f1[t_idx][k_idx] = f1
-                        #we got a nan value
-                        else:
-                            cosine_metric_f1[t_idx][k_idx] = np.nan
-           
-                scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
-                scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
+                            #access the coords in the gt
+                            gt_ids_at_coords = gt_patches[tuple(coords.T)]
+                            #get the max id
+                            gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
+                            
+                            #if the gt id is 0 we have no info
+                            if gt_max_id != 0:
+                                #check if it should be a new object 
+                                if id < 0:
+                                    #if is new object but did not get detected
+                                    if gt_max_id not in new_objects:
+                                        fp += 1
+                                        continue
+                                    #case predicted new and gt_max also belongs to new obj
+                                    else:
+                                        tp += 1
+                                        detected_gt_ids.add(gt_max_id)
+                               
+                
+
+                                #we look at a seen object
+                                else:
+                                    #the predicted id does not match the gt so already wront
+                                    if id != gt_max_id:
+                                        fp += 1
+                                        continue
+                                    #the the id == gt_max id
+                                    else:
+                                        tp += 1
+                                        detected_gt_ids.add(gt_max_id)
+
+                        #now we also comlete false negatives so objects which got not detected
+                        gt_ids = np.unique(gt_patches)   
+                        for gt_id in gt_ids:
+                            if gt_id == 0:
+                                continue  # Skip background
+                            
+                            # If this ground truth object was not detected
+                            if gt_id not in detected_gt_ids:
+                                fn += 1
+
+
+                        # calculate precision, recall, and F1-score
+                        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+                        cosine_metric_precision[t_idx][k_idx] = precision
+                        cosine_metric_recall[t_idx][k_idx] = recall
+                        cosine_metric_f1[t_idx][k_idx] =  f1_score
+
+
+                scan_cosine_iou_metric_precision.append(cosine_metric_precision)
+                scan_cosine_iou_metric_recall.append(cosine_metric_recall)
                 scan_cosine_metric_f1.append(cosine_metric_f1)
 
         
@@ -640,8 +688,8 @@ class Evaluator():
         #init the result for this scan_id
         #this bool needed for later
       
-        scan_cosine_iou_metric_precision = []
-        scan_cosine_iou_metric_recall = []
+        scan_cosine_metric_precision = []
+        scan_cosine_metric_recall = []
         scan_cosine_metric_f1 = []
 
 
@@ -660,8 +708,8 @@ class Evaluator():
                 k_means_len = len(self.k_means)
 
                 #initialize the resultmatrix for this frame
-                cosine_iou_metric_precision = np.zeros((ths_len,k_means_len))
-                cosine_iou_metric_recall = np.zeros((ths_len,k_means_len))
+                cosine_metric_precision = np.zeros((ths_len,k_means_len))
+                cosine_metric_recall = np.zeros((ths_len,k_means_len))
                 cosine_metric_f1 = np.zeros((ths_len,k_means_len))
                 
 
@@ -706,66 +754,116 @@ class Evaluator():
                     for k_idx, k in enumerate (self.k_means):
                         # get the majority vote of the k closest points
                         cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
-                        # print("majorities", cosine_majorities)
-                        # print("segmentation data", segmentation_data[frame_idx])
-                        # print("frame obj ids", frame_obj_ids)
+
                         #translate the matched object ids to pixellevel of the frame
                         cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],cosine_majorities)
                         
                         #quantize to patchlevel of to be comparable to gt
-                        cosine_patch_level = self.quantize_to_patch_level(cosine_pixel_level)
+                        computed_patches = self.quantize_to_patch_level(cosine_pixel_level)
+
+                        img_ids = np.unique(computed_patches)
+                        #initialize everything
+                        tp, fp, fn = 0, 0, 0
+                        detected_gt_ids = set()
+            
+                        #iterate over the predicted images
+                        for id in img_ids:
+                            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
+                        
+                            #get the coordinates of this id
+                            coords = np.argwhere(computed_patches == id)
+
+                            #access the coords in the gt
+                            gt_ids_at_coords = gt_patches[tuple(coords.T)]
+                            #get the max id
+                            gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
+                            
+                            #if the gt id is 0 we have no info
+                            if gt_max_id != 0:
+                                #check if it should be a new object 
+                                if id < 0:
+                                    #if is new object but did not get detected
+                                    if gt_max_id not in new_objects:
+                                        fp += 1
+                                        continue
+                                    #case predicted new and gt_max also belongs to new obj
+                                    else:
+                                        tp += 1
+                                        detected_gt_ids.add(gt_max_id)
+                               
+                
+
+                                #we look at a seen object
+                                else:
+                                    #the predicted id does not match the gt so already wront
+                                    if id != gt_max_id:
+                                        fp += 1
+                                        continue
+                                    #the the id == gt_max id
+                                    else:
+                                        tp += 1
+                                        detected_gt_ids.add(gt_max_id)
+
+                        #now we also comlete false negatives so objects which got not detected
+                        gt_ids = np.unique(gt_patches)   
+                        for gt_id in gt_ids:
+                            if gt_id == 0:
+                                continue  # Skip background
+                            
+                            # If this ground truth object was not detected
+                            if gt_id not in detected_gt_ids:
+                                fn += 1
+
+
+                        # calculate precision, recall, and F1-score
+                        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+                        cosine_metric_precision[t_idx][k_idx] = precision
+                        cosine_metric_recall[t_idx][k_idx] = recall
+                        cosine_metric_f1[t_idx][k_idx] =  f1_score
 
                         
-                        #finally compute the accuracies: based on area and object ids and fill into the matrix
-                        precision = self.compute_iou_metric_precision(gt_patches,cosine_patch_level, new_objects)
-                        recall = self.compute_iou_metric_recall(gt_patches,cosine_patch_level, new_objects)
-                        cosine_iou_metric_precision[t_idx][k_idx] = precision
-                        cosine_iou_metric_recall[t_idx][k_idx] = recall
-                        f1 = 0 #formula 2*(precision*recall)/(precision+recall)
-                        if (not np.isnan(precision)) and (not np.isnan(recall)): 
-                            if (precision+ recall) == 0:
-                                f1 = 0.0
-                            else:
-                                f1 = 2 * (precision * recall) / (precision + recall)
-
-                            cosine_metric_f1[t_idx][k_idx] = f1
-                        #we got a nan value
-                        else:
-                            cosine_metric_f1[t_idx][k_idx] = np.nan
-           
-                scan_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
-                scan_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
+                       
+                scan_cosine_metric_precision.append(cosine_metric_precision)
+                scan_cosine_metric_recall.append(cosine_metric_recall)
                 scan_cosine_metric_f1.append(cosine_metric_f1)
 
         
 
             
                         
-        return  np.nanmean(scan_cosine_iou_metric_precision,axis=0), np.nanmean(scan_cosine_iou_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
+        return  np.nanmean(scan_cosine_metric_precision,axis=0), np.nanmean(scan_cosine_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
 
     def compute(self, mode):
         #prepare the matricies for the 4 different metrics
-        all_cosine_iou_metric_precision = []
-        all_cosine_iou_metric_recall = []
-        all_cosine_iou_metric_f1 = []
+        all_cosine_metric_precision = []
+        all_cosine_metric_recall = []
+        all_cosine_metric_f1 = []
        
+        best_scene = 0
+        best_f1 = 0
     
         # Use tqdm for progress bar, iterating as tasks are completed
         with tqdm(total=len(self.scan_ids)) as pbar:
             for scan_id in self.scan_ids:
                 print("scanid", scan_id)
                 if self.split == "train":
-                    cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.compute_scan(scan_id,mode)
+                    cosine_metric_precision, cosine_metric_recall, cosine_metric_f1 = self.compute_scan(scan_id,mode)
                 
                 if self.split == "test":
-                    cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = self.eval_scan(scan_id,mode)
+                    cosine_metric_precision, cosine_metric_recall, cosine_metric_f1 = self.eval_scan(scan_id,mode)
                 # get the result matricies
-                all_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
-                all_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
-                all_cosine_iou_metric_f1.append(cosine_metric_f1)
+                all_cosine_metric_precision.append(cosine_metric_precision)
+                all_cosine_metric_recall.append(cosine_metric_recall)
+                all_cosine_metric_f1.append(cosine_metric_f1)
                 print("added results of scan id ", scan_id, " successfully")
             
-                
+                if self.split == "test":
+                    if cosine_metric_f1[0][0] > best_f1:
+                        best_f1 = cosine_metric_f1[0][0]
+                        best_scene = scan_id
                 # progressed
                 pbar.update(1)
 
@@ -816,16 +914,18 @@ class Evaluator():
         # print("recall", mean_cosine_iou_metric_recall) 
         # print("F1 score", mean_cosine_metric_f1)     
 
+        if self.split == "test":
+            print("best scan id is ", best_scene, "with best f1 ", best_f1 )
         #create sesult dict
-        result = {"cosine_iou_metric_precision": all_cosine_iou_metric_precision,
-                  "cosine_iou_metric_recall": all_cosine_iou_metric_recall,
-                  "cosine_mectric_f1": all_cosine_iou_metric_f1
+        result = {"cosine_iou_metric_precision": all_cosine_metric_precision,
+                  "cosine_iou_metric_recall": all_cosine_metric_recall,
+                  "cosine_mectric_f1": all_cosine_metric_f1
                 }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_segmentation_0to60.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_135.180.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
