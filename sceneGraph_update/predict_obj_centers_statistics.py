@@ -388,11 +388,23 @@ class Evaluator():
                 world_coordinates_frame = self.transform_to_3d(scan_id, depth_mat, frame_idx)
 
                 new_obj_idx = 0
-               
+                #access the segmented image
+                segmented_img = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
-                    #access the mask for the object
+                    #access the mask for the object (is quantized)
                     mask = boundingboxes['mask']
+                    #access the patches withing the segmented image
+                    masked_region = segmented_img[mask]
+                    #determin the most occuring colour
+                    colors_in_region = list(map(tuple, masked_region.reshape(-1, segmented_img.shape[-1])))
+                    most_frequent_color = Counter(colors_in_region).most_common(1)[0][0]
+                    #create a mask of the colour in the whole image
+                    color_mask = np.all(segmented_img == most_frequent_color, axis=-1)
+                    #we only want the mask for the region of the first region
+                    result_mask = color_mask & mask
+
+
                 
                     #get the dino object_id 
                     dino_id = boundingboxes["object_id"]
@@ -404,7 +416,7 @@ class Evaluator():
                     
 
                     #isolate only the object pointcloud
-                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, mask)
+                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
                     #not a new object so regular precedure
                     if object_id > 0:
                         #now we need to find out if we add it to the pointcloud of the object it mapped to or not
