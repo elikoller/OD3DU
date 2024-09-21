@@ -173,7 +173,14 @@ To generate the tables with the accuracies, use :
 ```bash
 bash scripts/matching/computation.sh
 ```
-### Match objects
+
+### predict the feature matches
+To generates the feature matches for the semantig segments : 
+```bash
+bash scripts/matching/obj_matches.sh
+```
+
+### Predict objects
 
 ```bash
 bash scripts/predicted_objects/predict_objects.sh

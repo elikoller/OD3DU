@@ -57,9 +57,7 @@ class Evaluator():
 
         #parameters
         self.minimum_votes = cfg.parameters.minimum_votes
-        self.minimum_points= cfg.parameters.minimum_points
         self.overlap_th = cfg.parameters.overlap_th
-        self.voxel_size_downsampling = cfg.parameters.voxel_size_downsampling
         self.voxel_size_overlap = cfg.parameters.voxel_size_overlap
         self.box_scale = cfg.parameters.box_scale
 
@@ -105,13 +103,14 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
+            self.scan_ids =  self.all_scans_split[:60]
         else:
             self.scan_ids = ref_scans_split
     
+        #print(self.scan_ids)
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
-        self.out_dir = osp.join("/media/ekoller/T7/center_statistics")
+        self.out_dir = osp.join("/media/ekoller/T7/Center_statistics")
         common.ensure_dir(self.out_dir)
 
      
@@ -389,11 +388,17 @@ class Evaluator():
 
                 new_obj_idx = 0
                 #access the segmented image
-                segmented_img = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
+                segmented_img_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
+                segmented_img = cv2.imread(segmented_img_path)
+                #print("Segmented image shape:", segmented_img.shape)
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
                     #access the mask for the object (is quantized)
                     mask = boundingboxes['mask']
+                    mask = mask.astype(bool)
+                    # print("mask box", mask)
+                    #print("Mask shape:", mask.shape)
+                    # print("Mask dtype:", mask.dtype)    
                     #access the patches withing the segmented image
                     masked_region = segmented_img[mask]
                     #determin the most occuring colour
@@ -401,6 +406,7 @@ class Evaluator():
                     most_frequent_color = Counter(colors_in_region).most_common(1)[0][0]
                     #create a mask of the colour in the whole image
                     color_mask = np.all(segmented_img == most_frequent_color, axis=-1)
+                    # print("color mask ", color_mask)
                     #we only want the mask for the region of the first region
                     result_mask = color_mask & mask
 
@@ -440,7 +446,7 @@ class Evaluator():
                                 if overlap > overlap_threshold and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
-
+                                
                             if best_cluster_index is not None:
                                 # Merge the point clouds with the best cluster
                                 best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
@@ -511,9 +517,9 @@ class Evaluator():
         all_centers = {}
         #iterte through the objects
         for obj_id, clusters in all_clusters.items():
-            print("in the for loop with cluster id", obj_id)
+            #print("in the for loop with cluster id", obj_id)
             #get the cluster with the most points aka largest 
-            print("clusters", clusters , "for object id " ,obj_id)
+            #print("clusters", clusters , "for object id " ,obj_id)
             #decide the most likely correct cluster based on votes first and then size
             largest_cluster_data = max(all_clusters[obj_id], key=lambda c: (c['votes'], len(c['cluster'])))
             largest_cluster = largest_cluster_data['cluster']
@@ -629,22 +635,23 @@ class Evaluator():
         return all_centers
 
         
-    def compute_statistics(self,scan_id, overlap):
-        #compute the centers if needed
-        if self.split == "train":
-            predicted_centers = self.compute_centers(scan_id,overlap)
+    def compute_statistics(self,scan_id):
+        # #compute the centers if needed
+        # if self.split == "train":
+        #     predicted_centers = self.compute_centers(scan_id,overlap)
 
-        #read the data for the test set
-        if self.split == "test":
-            predicted_centers = self.read_predicted_data(scan_id)
+        # #read the data for the test set
+        # if self.split == "test":
+        #     predicted_centers = self.read_predicted_data(scan_id)
 
 
         #print("predicted centers", predicted_centers)
         #initialize the results
-        precisions = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
-        recalls = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
-        f1s = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
-        boundingboxes = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
+        precisions = np.zeros((len(self.overlap_th), len(self.minimum_votes)))
+        recalls = np.zeros((len(self.overlap_th), len(self.minimum_votes)))
+        f1s = np.zeros((len(self.overlap_th), len(self.minimum_votes)))
+        boundingboxes = np.zeros((len(self.overlap_th), len(self.minimum_votes)))
+        avg_center_distance = np.zeros((len(self.overlap_th), len(self.minimum_votes)))
         
 
         #access gt pointcenters
@@ -670,8 +677,19 @@ class Evaluator():
 
 
         #calculate the different metrics
-        for i, min_vote in enumerate(self.minimum_votes):
-            for j, num_points in enumerate(self.minimum_points):
+        for j, thresh in enumerate(self.overlap_th):
+            predicted_centers = {}
+            #compute the centers if needed
+            if self.split == "train":
+                predicted_centers = self.compute_centers(scan_id,thresh)
+
+            #read the data for the test set
+            if self.split == "test":
+                predicted_centers = self.read_predicted_data(scan_id)
+
+            
+            for i, min_vote in enumerate(self.minimum_votes):
+            
                 #filter the points based on the minvote and numpoints
                 predicted = {}
                 #initialize 
@@ -679,6 +697,7 @@ class Evaluator():
                 false_negatives = 0
                 false_positives = 0
                 ious = []
+                center_difference = []
 
                 #remove points which would not pass
                 for obj_id , obj_data in predicted_centers.items():
@@ -686,7 +705,7 @@ class Evaluator():
                     size = obj_data["size"]
                     #check if it is detectable by the parameters
                                 
-                    if (votes >= min_vote) and (size >= num_points):
+                    if (votes >= min_vote):
                         predicted[obj_id] = obj_data
 
               
@@ -709,15 +728,18 @@ class Evaluator():
                                 #access the center
                                 pred_center = predicted[obj_id]['center']
                                 distance = np.linalg.norm(pred_center - gt_center)
+                                center_difference.append(distance)
                                 #print("distance", distance)
+                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
+                                ious.append(bbox_iou)
 
                                 if self.is_in_boundingbox(pred_center, boundingbox):
                                     true_positives += 1
                                     matched = True
                                     matched_predicted_ids.add(obj_id)
                                     #also look how well the predicted boundingbox overlaps
-                                    bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
-                                    ious.append(bbox_iou)
+                                    # bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
+                                    # ious.append(bbox_iou)
 
                         # If no prediction matched the ground truth center, count as false negative
                         if not matched:
@@ -740,13 +762,18 @@ class Evaluator():
 
 
                         if closest_pred_id is not None:
+                            center_difference.append(closest_distance)
+                            bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
+                            ious.append(bbox_iou)
+                            center_difference.append(closest_distance)
                             if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
                                 #print("closest dist new", closest_distance)
                                 true_positives += 1
                                 matched_predicted_ids.add(closest_pred_id)
                                 matched = True
-                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
-                                ious.append(bbox_iou)
+                                # bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
+                                # ious.append(bbox_iou)
+                                # center_difference.append(closest_distance)
 
                         # If no prediction matched the ground truth center, count as false negative
                         if not matched:
@@ -777,53 +804,57 @@ class Evaluator():
                     avg_iou = sum(ious) / len(ious)
                 else:
                     avg_iou = 0.0
+
+                if len(center_difference) > 0:
+                    avg_center = sum(center_difference) / len(center_difference)
+                else:
+                    avg_center = 0.0
                
                 precisions[j][i]= precision
                 recalls[j][i] = recall
                 f1s[j][i] =  f1_score
                 boundingboxes[j][i] = avg_iou
+                avg_center_distance[j][i] = avg_center
 
   
 
-        print("precision",precisions)
-        print("recall",recalls)
-        print("f1 scores", f1s)
-        return precisions,recalls,f1s, boundingboxes
+        # print("precision",precisions)
+        # print("recall",recalls)
+        # print("f1 scores", f1s)
+        return precisions,recalls,f1s, boundingboxes, avg_center_distance
           
 
     def compute(self):
-        for overlap in self.overlap_th:
-        #prepare the matricies for the 4 different metrics
-            all_precision = []
-            all_recall = []
-            all_f1 = []
-            all_boxes = []
-            best_scan_id = 0
-            best_f1 = 0
-            box = 0 
-
         
-            # Use tqdm for progress bar, iterating as tasks are completed
-            with tqdm(total=len(self.scan_ids)) as pbar:
-                for scan_id in self.scan_ids:
-                    print("scanid", scan_id)
-                    precisions, recalls, f1s, bounsingboxes = self.compute_statistics(scan_id, overlap)
-                    
-                    # get the result matricies
-                    all_precision.append(precisions)
-                    all_recall.append(recalls)
-                    all_f1.append(f1s)
-                    all_boxes.append(bounsingboxes)
-                    if self.split == "test":
-                        if f1s[0][0] > best_f1:
-                            best_f1 = f1s[0][0]
-                            best_scan_id = scan_id
-                            box = bounsingboxes[0][0]
-                    print("added results of scan id ", scan_id, " successfully")
+        #prepare the matricies for the 4 different metrics
+        all_precision = []
+        all_recall = []
+        all_f1 = []
+        all_boxes = []
+        all_centers = []
+        best_scan_id = 0
+        best_f1 = 0
+        box = 0 
+
+        #print("self scan ids before loop", self.scan_ids)
+        # Use tqdm for progress bar, iterating as tasks are completed
+        with tqdm(total=len(self.scan_ids)) as pbar:
+            for scan_id in self.scan_ids:
+                print("scanid", scan_id)
+                precisions, recalls, f1s, bounsingboxes, avg_centers = self.compute_statistics(scan_id)
                 
-                    
-                    # progressed
-                    pbar.update(1)
+                # get the result matricies
+                all_precision.append(precisions)
+                all_recall.append(recalls)
+                all_f1.append(f1s)
+                all_boxes.append(bounsingboxes)
+                all_centers.append(avg_centers)
+                
+                print("added results of scan id ", scan_id, " successfully")
+            
+                
+                # progressed
+                pbar.update(1)
 
 
 
@@ -867,21 +898,53 @@ class Evaluator():
 
             # print("array of references with new obj", new_obj)
             
-            print("writing the file")
-            #we want the result over all scenes
+            # print("writing the file")
+            # #we want the result over all scenes
             # mean_precision = np.mean(all_precision, axis=0)
             # mean_recall = np.mean(all_recall, axis=0)
             # mean_f1 = np.mean(all_f1, axis= 0)
+            # mean_all_boxes = np.mean(all_boxes,axes= 0)
+            # mean_all_centers = np.mean(all_centers,axes= 0)
+
+            # print(mean_precision) 
+            # print(mean_recall) 
+            # print(mean_f1) 
+            # print(mean_all_boxes) 
+            # print(mean_all_centers) 
         
-            # print("precision", mean_precision)
-            # print("recall", mean_recall) 
-            # print("F1 score", mean_f1)     
 
             #create sesult dict
+            result = {"precision": all_precision,
+                      "recall": all_recall,
+                      "f1": all_f1,
+                      "iou_boxes": all_boxes,
+                      "mean_center_difference": all_centers
+                    }
+            
+            # print("writing the file")
+            # #we want the result over all scenes
+            # mean_precision = np.mean(all_precision, axis=0)
+            # mean_recall = np.mean(all_recall, axis=0)
+            # mean_f1 = np.mean(all_f1, axis= 0)
+            # mean_all_boxes = np.mean(all_boxes,axes= 0)
+            # mean_all_centers = np.mean(all_centers,axes= 0)
+
+            # print(mean_precision) 
+            # print(mean_recall) 
+            # print(mean_f1) 
+            # print(mean_all_boxes) 
+            # print(mean_all_centers) 
+        
+
+            # #create sesult dict
             # result = {"precision": mean_precision,
             #           "recall": mean_recall,
-            #           "f1": mean_f1
+            #           "f1": mean_f1,
+            #           "iou_boxes": mean_all_boxes,
+            #           "mean_center_difference": mean_all_centers
             #         }
+            
+
             if self.split == "test":
              print("the best performins scene is", best_scan_id, " with f1" , best_f1,  " and boxes", box)
             result = {"precision": all_precision,
@@ -890,11 +953,11 @@ class Evaluator():
                     "box_iou": all_boxes
                     }
                     
-            print("result", result)
+           
             #save the file in the results direcrtory
-            result_dir = osp.join(self.out_dir,"overlap_" + str(overlap))
+            result_dir = osp.join(self.out_dir)
             common.ensure_dir(result_dir)
-            result_file_path = osp.join(result_dir,  "statistics_object_precidtion.pkl")
+            result_file_path = osp.join(result_dir,  "statistics_object_prediction.0.60pkl")
             common.write_pkl_data(result, result_file_path)
             
        

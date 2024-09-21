@@ -105,14 +105,15 @@ class Evaluator():
                 self.all_scans_split.append(rescans[0])
 
          
+        self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"]#self.all_scans_split
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
 
-        print("scan_id_length", len(self.scan_ids))
+        #print("scan_id_length", len(self.scan_ids))
 
 
 
@@ -347,7 +348,7 @@ class Evaluator():
 
         #convert to numpy for faiss
         ref_obj_ids = np.array(ref_obj_ids)
-        print("reference ids", ref_obj_ids)
+        #print("reference ids", ref_obj_ids)
         ref_vectors = np.array(ref_vectors)
 
         #normalize vectors
@@ -407,11 +408,11 @@ class Evaluator():
                 
                    
 
-                print("cosine_obj_ids", cosine_obj_ids)  
+                #print("cosine_obj_ids", cosine_obj_ids)  
                 cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
                 all_matches[frame_idx] = cosine_majorities
                           
-        print("all id matches", all_matches)
+        #print("all id matches", all_matches)
         # print(all_matches)
         #save the file in the results direcrtory
         result_file_path = osp.join(self.out_dir,scan_id +".h5")
@@ -452,33 +453,48 @@ class Evaluator():
 
     def compute(self):
     
-        workers = 3
+        workers = 2
         
-        # parallelize the computations
-        with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.compute_scan, scan_id): scan_id for scan_id in self.scan_ids}
+        with tqdm(total=len(self.scan_ids)) as pbar:
+            for scan_id in self.scan_ids:
+                # Call the compute_scan method for each scan_id
+                done = self.compute_scan(scan_id)
+                if done:
+                    print("Added results of scan id", scan_id, "successfully")
+                else:
+                    print("Not successful for scan id", scan_id)
+                
+                pbar.update(1)
+
+
+        print("Finished matching the ids")
+        
+          
+        # # parallelize the computations
+        # with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
+        #     futures = {executor.submit(self.compute_scan, scan_id): scan_id for scan_id in self.scan_ids}
             
-            # Use tqdm for progress bar, iterating as tasks are completed
-            with tqdm(total=len(self.scan_ids)) as pbar:
-                for future in concurrent.futures.as_completed(futures):
-                    scan_id = futures[future]
-                    try:
-                        done = future.result()
-                        if done:
-                            print("added results of scan id ", scan_id, " successfully")
-                        else:
-                            print("not successful ", scan_id)
+        #     # Use tqdm for progress bar, iterating as tasks are completed
+        #     with tqdm(total=len(self.scan_ids)) as pbar:
+        #         for future in concurrent.futures.as_completed(futures):
+        #             scan_id = futures[future]
+        #             try:
+        #                 done = future.result()
+        #                 if done:
+        #                     print("added results of scan id ", scan_id, " successfully")
+        #                 else:
+        #                     print("not successful ", scan_id)
                         
 
-                    except Exception as exc:
-                        print(f"Scan {scan_id} generated an exception: {exc}")
-                        print("Traceback details:")
-                        traceback.print_exc()
+        #             except Exception as exc:
+        #                 print(f"Scan {scan_id} generated an exception: {exc}")
+        #                 print("Traceback details:")
+        #                 traceback.print_exc()
                     
-                    # progressed
-                    pbar.update(1)
+        #             # progressed
+        #             pbar.update(1)
 
-        print("finished matching the ids")
+        # print("finished matching the ids")
        
                 
 
@@ -500,7 +516,9 @@ def main():
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
     evaluate = Evaluator(cfg, 'train')
-    
+    evaluate.compute()
+    print("start computation for test set")
+    evaluate = Evaluator(cfg, 'test')
     evaluate.compute()
     
    
