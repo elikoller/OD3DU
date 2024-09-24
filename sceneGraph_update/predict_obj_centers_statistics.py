@@ -103,11 +103,12 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids =  self.all_scans_split[:60]
+            self.scan_ids =  self.all_scans_split[:2]
         else:
             self.scan_ids = ref_scans_split
     
         #print(self.scan_ids)
+        print("last")
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
         self.out_dir = osp.join("/media/ekoller/T7/Center_statistics")
@@ -783,7 +784,9 @@ class Evaluator():
                 # Calculate false positives (predicted centers that did not match any ground truth center)
                 false_positives = len(predicted) - len(matched_predicted_ids)
 
-
+                print("true positives", true_positives)
+                print("false positives", false_positives)
+                print("false negatives", false_negatives )
                 # Calculate precision, recall, and false positive rate
                 if true_positives + false_positives == 0:
                     precision = 0.0
@@ -947,17 +950,17 @@ class Evaluator():
 
             if self.split == "test":
              print("the best performins scene is", best_scan_id, " with f1" , best_f1,  " and boxes", box)
-            result = {"precision": all_precision,
-                    "recall": all_recall,
-                    "f1": all_f1,
-                    "box_iou": all_boxes
-                    }
+            # result = {"precision": all_precision,
+            #         "recall": all_recall,
+            #         "f1": all_f1,
+            #         "box_iou": all_boxes
+            #         }
                     
            
             #save the file in the results direcrtory
             result_dir = osp.join(self.out_dir)
             common.ensure_dir(result_dir)
-            result_file_path = osp.join(result_dir,  "statistics_object_prediction.0.60pkl")
+            result_file_path = osp.join(result_dir,  "statistics_object_prediction.120.180.pkl")
             common.write_pkl_data(result, result_file_path)
             
        
