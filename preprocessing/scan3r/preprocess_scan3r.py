@@ -181,7 +181,7 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
                 ])
                 bounding_boxes[obj_id] = corners
                 #also compute the centroid
-                centroid = np.mean(obj_coords, axis=0)
+                centroid = np.median(obj_coords, axis=0)
                 centroids[obj_id] = centroid
    
 

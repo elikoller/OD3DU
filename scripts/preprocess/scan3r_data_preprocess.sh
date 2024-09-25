@@ -11,7 +11,7 @@ source $CONDA_BIN/activate BT
 cd $VLSG_SPACE
 python ./preprocessing/scan3r/preprocess_scan3r.py \
     --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
-    --split train
+    --split test
 
 
 

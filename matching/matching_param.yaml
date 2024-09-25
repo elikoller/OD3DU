@@ -17,6 +17,6 @@ model:
   name: DinoV2
 
 parameters: 
-    k_means: 9
+    k_means: 5
     threshold: 0.0
     mode: "avg"
