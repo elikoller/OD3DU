@@ -104,7 +104,7 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids =  self.all_scans_split[:2]
+            self.scan_ids =  self.all_scans_split[90:]
         else:
             self.scan_ids = ref_scans_split
     
@@ -652,7 +652,7 @@ class Evaluator():
         if self.split == "train":
             raw_predicted_centers = self.compute_centers(scan_id,overlap_threshold)
 
-        print("predicted centers", len(raw_predicted_centers) )
+        #print("predicted centers", len(raw_predicted_centers) )
         #read the data for the test set
         if self.split == "test":
             raw_predicted_centers = self.read_predicted_data(scan_id)
@@ -704,8 +704,8 @@ class Evaluator():
         # print("new obj", present_obj_scan)
         new_objects = list(set(gt_ids) - set(ref_gt_ids))
 
-        print("gt object ids", gt_ids)
-        print("boundingboxes length", len(gt_boxes))
+        #print("gt object ids", gt_ids)
+        #print("boundingboxes length", len(gt_boxes))
         #calculate the different metrics
         for j, min_point in enumerate(self.minimum_points):
             for i, min_vote in enumerate(self.minimum_votes):
@@ -809,17 +809,17 @@ class Evaluator():
                             false_negatives += 1
                             #print("go not matched")
                 
-                print("legnth of predicted items", len(predicted))
-                print("lenght of matched predicted", len(matched_predicted_ids))
+                # print("legnth of predicted items", len(predicted))
+                # print("lenght of matched predicted", len(matched_predicted_ids))
                 # Calculate false positives (predicted centers that did not match any ground truth center)
                # print("precicted", len(predicted))
-                print("fals pos before", len(false_positives))
+                # print("fals pos before", false_positives)
                 false_positives = false_positives +  len(predicted) - len(matched_predicted_ids)
-                print("fals pos after", len(false_positives))
-                assert( good_to_know >= true_positives + false_negatives + false_positives)
-                print("true positives", true_positives)
-                print("false positives", false_positives)
-                print("false negatives", false_negatives )
+                # print("fals pos after",false_positives)
+                # assert( good_to_know >= true_positives + false_negatives + false_positives)
+                # print("true positives", true_positives)
+                # print("false positives", false_positives)
+                # print("false negatives", false_negatives )
                 # Calculate precision, recall, and false positive rate
                 if true_positives + false_positives == 0:
                     precision = 0.0
@@ -908,7 +908,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_object_prediction.120.180.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_object_prediction.90.180.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
