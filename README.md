@@ -155,6 +155,14 @@ since the requirements are a bit tought to manage and use a different version of
 bash scripts/dino_segmentation/semantic_segmentation_dino.sh
 ```
 
+### generating a depth estimation for input images
+in oreder to compute an estimated depth 
+
+```bash
+bash scripts/depth_anything/depth_estim.sh
+```
+
+
 
 
 ### Feature generation

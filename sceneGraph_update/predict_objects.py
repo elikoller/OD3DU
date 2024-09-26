@@ -58,6 +58,7 @@ class Evaluator():
         self.voxel_size = cfg.parameters.voxel_size
         self.minimum_points = cfg.parameters.minimum_points
         self.overlap_th = cfg.parameters.overlap_threshold
+        self.minimum_votes = cfg.parameters.minimum_votes
 
 
         #patch info 
@@ -341,7 +342,7 @@ class Evaluator():
                 pgm_file = Image.open(depth_path)
         
                 #since its distances so discrete things take the nearest value not a different interpolation
-                depth_mat_resized = pgm_file.resize((self.image_height,self.image_width), Image.NEAREST) 
+                depth_mat_resized = pgm_file.resize((self.image_width, self.image_height), Image.NEAREST) 
             
                 #depth is given in mm so put it into m
                 depth_mat = np.array(depth_mat_resized)
@@ -351,27 +352,47 @@ class Evaluator():
                 world_coordinates_frame = self.transform_to_3d(scan_id, depth_mat, frame_idx)
 
                 new_obj_idx = 0
-               
+                #access the segmented image
+                segmented_img_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
+                segmented_img = cv2.imread(segmented_img_path)
+                #print("Segmented image shape:", segmented_img.shape)
                 #iterate through the masks of the objec
                 for boundingboxes in segmentation_data[frame_idx]:
-                    #access the mask for the object
-                    mask = boundingboxes['mask'] #this mask is in patches to reduce noise in the data
-                    #access the more finegrained mask based on the image
+                    #access the mask for the object (is quantized)
+                    mask = boundingboxes['mask']
+                    mask = mask.astype(bool)
+                    # print("mask box", mask)
+                    #print("Mask shape:", mask.shape)
+                    # print("Mask dtype:", mask.dtype)    
+                    #access the patches withing the segmented image
+                    masked_region = segmented_img[mask]
+                    #determin the most occuring colour
+                    colors_in_region = list(map(tuple, masked_region.reshape(-1, segmented_img.shape[-1])))
+                    most_frequent_color = Counter(colors_in_region).most_common(1)[0][0]
+                    #create a mask of the colour in the whole image
+                    color_mask = np.all(segmented_img == most_frequent_color, axis=-1)
+                    # print("color mask ", color_mask)
+                    #we only want the mask for the region of the first region
+                    result_mask = color_mask & mask
 
+
+                
                     #get the dino object_id 
                     dino_id = boundingboxes["object_id"]
                     #print("frame ", frame_idx, " dino_id ", dino_id)
                     #get the matched id
-                    #print("matches frame ", frame_matches)
                     object_id = frame_matches[str(dino_id)]
+                    #print("matched id ", object_id)
+                    
                     
 
                     #isolate only the object pointcloud
-                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, mask)
+                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
                     #not a new object so regular precedure
                     if object_id > 0:
                         #now we need to find out if we add it to the pointcloud of the object it mapped to or not
                         if object_id not in all_clusters:
+                            #print("create first cluter obj_id ", object_id)
                             #there are no clusters & votes stored for this object jet
                             all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
                         #object already has pointclouds we need to see if we merge or add a new cluster
@@ -390,7 +411,7 @@ class Evaluator():
                                 if overlap > self.overlap_th and overlap > max_overlap:
                                     max_overlap = overlap
                                     best_cluster_index = i
-
+                                
                             if best_cluster_index is not None:
                                 # Merge the point clouds with the best cluster
                                 best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
@@ -404,28 +425,7 @@ class Evaluator():
 
                                 # Mark as merged
                                 merged = True
-
-
-                                # # check if there is ovelap with an existing cluster
-                                # if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
-                                #     # Merge the point clouds
-                                #     merged_points = np.vstack((obj_pcl, cluster))
-                                    
-                                #     # merge the cluster
-                                #     all_clusters[object_id][i]['cluster'] = merged_points
-
-                                #     # increment cluster vote
-                                #     all_clusters[object_id][i]['votes'] += 1
-
-                                #     # Mark as merged
-                                #     merged = True
-                                #     break
-
-                                # # do not overlap -> initialize a new cluster to 1
                             if not merged:
-                       
-                       
-                       
                                 all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
                     #new object
                     else:
@@ -470,96 +470,48 @@ class Evaluator():
                                 all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
 
 
-                            # for id in enumerate(negative_keys):
-                            #     #each new cluster starts unmerged
-                            #     merged = False
-                            #     for i, cluster_data in enumerate(all_clusters[id]):
-                            #         cluster = cluster_data['cluster']
+        #print("all clusters legnth", len(all_clusters))
 
-                            #         # check if there is ovelap with an existing cluster
-                            #         if self.do_pcl_overlap(obj_pcl, cluster) > 0.3:
-                            #             # Merge the point clouds
-                            #             merged_points = np.vstack((obj_pcl, cluster))
-                                        
-                            #             # merge the cluster
-                            #             all_clusters[object_id][i]['cluster'] = merged_points
-
-                            #             # increment cluster vote
-                            #             all_clusters[object_id][i]['votes'] += 1
-
-                            #             # Mark as merged
-                            #             merged = True
-                            #             break
-
-                            #         # do not overlap -> initialize a new cluster to 1
-                            #         if not merged:
-                            #             all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
-
-
-
-
-
-
-
-
-                        # #iterate through current clusters and see if we merge it
-                        # for i, cluster in enumerate(all_clusters[object_id]):
-                        #     #look if it overlapt with a cluster
-                        #     if self.do_pcl_overlap(obj_pcl, cluster) > 0.1:
-                        #         #merge it
-                        #         merged_points  = np.vstack((obj_pcl,cluster))
-                        #         all_clusters[object_id][i] = merged_points
-                        #         #got merged
-                        #         merged = True
-                        # #not merged yet so create new cluster for this obje       
-                        # if not merged:
-                        #     all_clusters[object_id].append(obj_pcl)
-
-
+        # print("clusters keys", all_clusters.keys())
+        # print("all clusters", all_clusters)
         #now that we have the lists of clusters we need to iterate over them and choose the biggest cluster, downsample it & take the average to predict the center
         #initialize final object
         all_centers = {}
         #iterte through the objects
         for obj_id, clusters in all_clusters.items():
+            #print("in the for loop with cluster id", obj_id)
             #get the cluster with the most points aka largest 
-            print(clusters)
+            #print("clusters", clusters , "for object id " ,obj_id)
             #decide the most likely correct cluster based on votes first and then size
             largest_cluster_data = max(all_clusters[obj_id], key=lambda c: (c['votes'], len(c['cluster'])))
             largest_cluster = largest_cluster_data['cluster']
+            #downsample to store
+            cluster_point_cloud = o3d.geometry.PointCloud()
+            cluster_point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
+            voxel_size = 0.07  # Adjust this value based on your needs
+            downsampled_point_cloud = cluster_point_cloud.voxel_down_sample(voxel_size=voxel_size)
+            cl, ind = downsampled_point_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.75)
+            cluster_pcl = np.asarray(cl.points)
+
+            #get the votes
             largest_cluster_votes = largest_cluster_data["votes"]
-            #create pointcloud and downsample it
-            # point_cloud = o3d.geometry.PointCloud()
-            # point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
-            
-            # # Downsample the point cloud using voxel grid filtering
-            # downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
-            
-            # Convert downsampled point cloud back to a numpy array
-            # downsampled_points = np.asarray(downsampled_pcd.points)
-            obj_center = np.mean(largest_cluster, axis=0)
-            
-            #save everithing to be able to visualize it later :)
-            #actually use the iterative thing for downsampling
-             #create pointcloud and downsample it
-            # point_cloud = o3d.geometry.PointCloud()
-            # point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
-            
-            # # Downsample the point cloud using voxel grid filtering
-            # downsampled_pcd = point_cloud.voxel_down_sample(self.voxel_size)
-            
-            # #Convert downsampled point cloud back to a numpy array
-            # downsampled_points = np.asarray(downsampled_pcd.points)
-        
-            all_centers[obj_id] = {
-                'center': obj_center,
-                'points': largest_cluster,
-                'votes' : largest_cluster_votes,
-                'size': len(largest_cluster)
 
-            }
+            #decide it it is a predicted object
+            if (largest_cluster_votes >= self.minimum_votes) and (len(cluster_pcl) >= self.minimum_points):
+                #create the objec center
+                obj_center = np.median(cluster_pcl, axis= 0)
+                #return the object for the evaluation
+                all_centers[obj_id] = {
+                    'center': obj_center,
+                    "size": len(cluster_pcl),
+                    "votes" : largest_cluster_votes,
+                    "points": cluster_pcl
+
+                }
+        #print("raw centers length" , len(all_centers))
             
 
-            return all_centers
+        return all_centers
  
     
     def compute(self):

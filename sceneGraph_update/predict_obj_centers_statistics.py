@@ -104,7 +104,7 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids =  self.all_scans_split[90:]
+            self.scan_ids =  self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
     
@@ -589,34 +589,56 @@ class Evaluator():
         #     print("the object was inside")
         return is_inside
     
+    def compute_bounding_box(self,points):
+        min_point = np.min(points, axis=0)  # Minimum x, y, z
+        max_point = np.max(points, axis=0)  # Maximum x, y, z
+        return min_point, max_point
 
     def boundingbox_iou(self,boundingbox, pcl):
         
-        # compute the intersection boundaries
+        pred_bbox = self.compute_bounding_box(pcl)
+        gt_bbox = self.compute_bounding_box(boundingbox)
+
+        #get the different sizes
+        pred_size = pred_bbox[1] - pred_bbox[0]
+        gt_size = gt_bbox[1] - gt_bbox[0]
+
+        #sort them
+        sorted_pred_size = np.sort(pred_size)
+        sorted_gt_size = np.sort(gt_size)
+
+        adjusted_size = np.empty_like(pred_size)
+        for i in range(3):
+            adjusted_size[np.argsort(pred_size)[i]] = sorted_gt_size[i]
+
+        #adjust the predicted box around its center such that it fits the gt boundingbox in terms of dimensions, keep the predicted aspect ratio
+        pred_center = (pred_bbox[0] + pred_bbox[1]) / 2
+        adjusted_bbox_min = pred_center - (adjusted_size / 2)
+        adjusted_bbox_max = pred_center + (adjusted_size / 2)
+
         min1 = np.min(boundingbox, axis=0)  
         max1 = np.max(boundingbox, axis=0)  
-        
-        min2 = np.min(pcl, axis=0)  
-        max2 = np.max(pcl, axis=0)  
-        
-        # compute the intersection box
+        min2 = adjusted_bbox_min 
+        max2 = adjusted_bbox_max
+
+        # Compute the intersection box
         intersect_min = np.maximum(min1, min2) 
         intersect_max = np.minimum(max1, max2)  
-        
-        # compute intersection box dimensions
+
+        # Compute intersection box dimensions
         intersect_dims = np.maximum(intersect_max - intersect_min, 0)  
         intersection_volume = np.prod(intersect_dims)  
-        
-        # compute volumes of each bounding box
+
+        # Compute volumes of each bounding box
         volume1 = np.prod(max1 - min1)  
         volume2 = np.prod(max2 - min2)  
-        # computeunion volume
-        union_volume = volume1 + volume2 - intersection_volume
-        
-        # compute intersection
-        iou = intersection_volume / union_volume if union_volume > 0 else 0
 
-        return iou
+        # Compute union volume
+        union_volume = volume1 + volume2 - intersection_volume
+
+        # Compute IoU
+        iou = intersection_volume / union_volume if union_volume > 0 else 0
+        return iou 
 
 
     def read_predicted_data(self, scan_id):
@@ -732,7 +754,7 @@ class Evaluator():
                 matched_predicted_ids = set()
                 #compute how many ids are present
                 good_to_know = len(gt_ids) + len(predicted.keys())
-                print("all present ids", good_to_know)
+                #print("all present ids", good_to_know)
                 # print("gt center keys", gt_centers.keys())
                 # print("gt_boxes keys", gt_boxes.keys())
                 #oke now compute the true posities and false negatives
@@ -897,18 +919,18 @@ class Evaluator():
 
 
         #create sesult dict
-        result = {"precision": all_precision,
-                "recall": all_recall,
-                "f1": all_f1,
-                "iou_boxes": all_boxes,
-                "mean_center_difference": all_centers
+        result = {"precision": np.mean(all_precision),
+                "recall": np.mean(all_recall),
+                "f1": np.mean(all_f1),
+                "iou_boxes": np.mean(all_boxes),
+                "mean_center_difference": np.mean(all_centers)
                 }
     
 
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_object_prediction.90.180.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_object_prediction.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
