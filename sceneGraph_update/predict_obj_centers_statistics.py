@@ -104,11 +104,11 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids =  self.all_scans_split
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
     
-    
+        print("now correctly computed mean")
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
         self.out_dir = osp.join("/media/ekoller/T7/Center_statistics")
@@ -544,6 +544,7 @@ class Evaluator():
             largest_cluster_votes = largest_cluster_data["votes"]
             #create the objec center
             obj_center = np.median(cluster_pcl, axis= 0)
+            #print("object pcl length", len(cluster_pcl))
             #return the object for the evaluation
             all_centers[obj_id] = {
                 'center': obj_center,
@@ -919,11 +920,11 @@ class Evaluator():
 
 
         #create sesult dict
-        result = {"precision": np.mean(all_precision),
-                "recall": np.mean(all_recall),
-                "f1": np.mean(all_f1),
-                "iou_boxes": np.mean(all_boxes),
-                "mean_center_difference": np.mean(all_centers)
+        result = {"precision": np.mean(all_precision, axis = 0),
+                "recall": np.mean(all_recall,  axis = 0),
+                "f1": np.mean(all_f1,  axis = 0),
+                "iou_boxes": np.mean(all_boxes,  axis = 0),
+                "mean_center_difference": np.mean(all_centers,  axis = 0)
                 }
     
 
