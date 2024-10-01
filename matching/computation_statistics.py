@@ -952,13 +952,17 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
+    # evaluate = Evaluator(cfg, 'train')
+    # print("start avg computation")
+    # evaluate.compute("avg")
+    # print("start max computation")
+    # evaluate.compute("max")
+    # print("start median computation")
+    # evaluate.compute("median")
+
+    evaluate = Evaluator(cfg, 'test')
     print("start avg computation")
     evaluate.compute("avg")
-    print("start max computation")
-    evaluate.compute("max")
-    print("start median computation")
-    evaluate.compute("median")
    
   
 

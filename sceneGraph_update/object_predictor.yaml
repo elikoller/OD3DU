@@ -18,7 +18,7 @@ model:
 
 parameters: 
     voxel_size: 0.2
-    minimum_points: 30
-    minimum_votes: 3
-    overlap_threshold: 0.5
+    minimum_points: 35
+    minimum_votes: 2
+    overlap_threshold: 0.1
   

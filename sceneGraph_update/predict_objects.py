@@ -102,7 +102,7 @@ class Evaluator():
 
 
         if self.rescan:
-            self.scan_ids = ["fcf66d8a-622d-291c-8429-0e1109c6bb26"] #self.all_scans_split
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
     
@@ -569,7 +569,7 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
+    evaluate = Evaluator(cfg, 'test')
     print("start mask computation")
     evaluate.compute()
    
