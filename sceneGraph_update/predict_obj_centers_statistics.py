@@ -792,6 +792,7 @@ class Evaluator():
                     if (obj_id not in new_objects):
                         #the object was predicted
                         if (obj_id in predicted.keys()):
+                               
                                 #access the center
                                 pred_center = predicted[obj_id]['center']
                                 distance = np.linalg.norm(pred_center - gt_center)
@@ -817,6 +818,8 @@ class Evaluator():
                             #print("go not matched")
 
                     # now we look at the new object
+
+
                     elif (obj_id in new_objects):
                         #print("new objects get evaluatied")
                         closest_distance = float('inf')  # Start with an infinitely large distance
@@ -840,7 +843,7 @@ class Evaluator():
                             center_difference.append(closest_distance)
                             matched = True
                             matched_predicted_ids.add(closest_pred_id)
-                            print("got matched")
+                            #print("got matched")
                             if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
                                 #print("closest dist new", closest_distance)
                                 true_positives += 1
@@ -853,7 +856,10 @@ class Evaluator():
                         # If no prediction matched the ground truth center, count as false negative
                         elif not matched:
                             false_negatives += 1
-                            print("go not matched")
+                            #print("go not matched")
+
+
+
                 
                 # print("legnth of predicted items", len(predicted))
                 # print("lenght of matched predicted", len(matched_predicted_ids))
@@ -903,9 +909,9 @@ class Evaluator():
 
   
 
-        # print("precision",precisions)
-        # print("recall",recalls)
-        # print("f1 scores", f1s)
+        print("precision",precisions)
+        print("recall",recalls)
+        print("f1 scores", f1s)
         return precisions,recalls,f1s, boundingboxes, avg_center_distance
           
 
@@ -933,11 +939,11 @@ class Evaluator():
                 all_f1.append(f1s)
                 all_boxes.append(bounsingboxes)
                 all_centers.append(avg_centers)
-                # print( precisions.shape,
-                # recalls.shape,
-                # f1s.shape,
-                # bounsingboxes.shape,
-                # avg_centers.shape)
+                # print( precisions,
+                # recalls,
+                # f1s,
+                # bounsingboxes,
+                # avg_centers)
                 print("added results of scan id ", scan_id, " successfully")
                 pbar.update(1)
 
@@ -950,11 +956,11 @@ class Evaluator():
                 "mean_center_difference": np.mean(all_centers,  axis = 0)
                 }
     
-
+        print( np.mean(all_precision, axis = 0),  np.mean(all_recall,  axis = 0), np.mean(all_f1,  axis = 0), np.mean(all_boxes,  axis = 0), np.mean(all_centers,  axis = 0))
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_object_prediction_TEST.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_object_prediction_TEST_only_ref.pkl")
         common.write_pkl_data(result, result_file_path)
             
     

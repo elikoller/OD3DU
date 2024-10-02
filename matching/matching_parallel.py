@@ -158,7 +158,7 @@ class Evaluator():
             #print("avg distance", average_distance)
             if average_distance < th:
                 #too far away
-                print("matched to new object", unique_new_obj)
+                #print("matched to new object", unique_new_obj)
                 majorities[frame_id] =unique_new_obj
                 unique_new_obj = unique_new_obj -1
             else:
@@ -422,16 +422,16 @@ class Evaluator():
 
         """  need to uncomment this again
         """
-        # result_file_path = osp.join(self.out_dir,scan_id + "blabla" +".h5")
-        # with h5py.File(result_file_path, 'w') as hdf_file:
-        #     for frame_idx, matches in all_matches.items():
-        #         # Create a group for each frame index
-        #         frame_group = hdf_file.create_group(str(frame_idx))
+        result_file_path = osp.join(self.out_dir,scan_id + "blabla" +".h5")
+        with h5py.File(result_file_path, 'w') as hdf_file:
+            for frame_idx, matches in all_matches.items():
+                # Create a group for each frame index
+                frame_group = hdf_file.create_group(str(frame_idx))
                 
-        #         # Iterate through the matches and store frame_id and obj
-        #         for frame_id, obj in matches.items():
-        #             # Store each frame_id -> obj mapping as a dataset in the frame group
-        #             frame_group.create_dataset(str(frame_id), data=obj)
+                # Iterate through the matches and store frame_id and obj
+                for frame_id, obj in matches.items():
+                    # Store each frame_id -> obj mapping as a dataset in the frame group
+                    frame_group.create_dataset(str(frame_id), data=obj)
 
         
 
