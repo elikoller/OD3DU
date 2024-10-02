@@ -110,7 +110,7 @@ class Evaluator():
             self.scan_ids = ref_scans_split
     
         #output path for components
-        self.out_dir = osp.join(self.data_root_dir, "Results","mask_metric" )
+        self.out_dir = osp.join(self.data_root_dir, "Results", "testset_mask_metric" )
         common.ensure_dir(self.out_dir)
 
      
@@ -322,7 +322,10 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
+    # evaluate = Evaluator(cfg, 'train')
+    # print("start mask computation")
+    # evaluate.compute()
+    evaluate = Evaluator(cfg, 'test')
     print("start mask computation")
     evaluate.compute()
    

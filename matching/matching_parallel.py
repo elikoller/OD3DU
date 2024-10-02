@@ -108,7 +108,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split # ["02b33e01-be2b-2d54-93fb-4145a709cec5", "fcf66d8a-622d-291c-8429-0e1109c6bb26" ]
         else:
             self.scan_ids = ref_scans_split
 
@@ -120,7 +120,8 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
+        #self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
+        self.out_dir = osp.join("/media/ekoller/T7/Predicted_matches")
         common.ensure_dir(self.out_dir)
 
      
@@ -154,8 +155,10 @@ class Evaluator():
             average_distance = np.mean(majority_distances)
 
             #thresthold the average majority of the distances, it it is above the threshold, give the id -1 which represents an unseen obj
+            #print("avg distance", average_distance)
             if average_distance < th:
                 #too far away
+                print("matched to new object", unique_new_obj)
                 majorities[frame_id] =unique_new_obj
                 unique_new_obj = unique_new_obj -1
             else:
@@ -410,21 +413,27 @@ class Evaluator():
 
                 #print("cosine_obj_ids", cosine_obj_ids)  
                 cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
+                
                 all_matches[frame_idx] = cosine_majorities
                           
         #print("all id matches", all_matches)
         # print(all_matches)
         #save the file in the results direcrtory
-        result_file_path = osp.join(self.out_dir,scan_id +".h5")
-        with h5py.File(result_file_path, 'w') as hdf_file:
-            for frame_idx, matches in all_matches.items():
-                # Create a group for each frame index
-                frame_group = hdf_file.create_group(str(frame_idx))
+
+        """  need to uncomment this again
+        """
+        # result_file_path = osp.join(self.out_dir,scan_id + "blabla" +".h5")
+        # with h5py.File(result_file_path, 'w') as hdf_file:
+        #     for frame_idx, matches in all_matches.items():
+        #         # Create a group for each frame index
+        #         frame_group = hdf_file.create_group(str(frame_idx))
                 
-                # Iterate through the matches and store frame_id and obj
-                for frame_id, obj in matches.items():
-                    # Store each frame_id -> obj mapping as a dataset in the frame group
-                    frame_group.create_dataset(str(frame_id), data=obj)
+        #         # Iterate through the matches and store frame_id and obj
+        #         for frame_id, obj in matches.items():
+        #             # Store each frame_id -> obj mapping as a dataset in the frame group
+        #             frame_group.create_dataset(str(frame_id), data=obj)
+
+        
 
     #read it out
       # Iterate through frame indices
@@ -515,10 +524,10 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
-    evaluate.compute()
+    # evaluate = Evaluator(cfg, 'train')
+    # evaluate.compute()
     print("start computation for test set")
-    evaluate = Evaluator(cfg, 'test')
+    evaluate = Evaluator(cfg, 'train')
     evaluate.compute()
     
    

@@ -111,7 +111,7 @@ class Evaluator():
         print("now correctly computed mean")
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
-        self.out_dir = osp.join("/media/ekoller/T7/Center_statistics")
+        self.out_dir = osp.join("/media/ekoller/T7/Center_statistics/")
         common.ensure_dir(self.out_dir)
 
      
@@ -643,28 +643,46 @@ class Evaluator():
 
 
     def read_predicted_data(self, scan_id):
-        all_centers= {}
-        filepath = osp.join("/media/ekoller/T7/Predicted_Centers",scan_id + ".pkl")
-        with h5py.File(filepath, 'r') as h5file:
-            # Iterate through each object group
+        all_centers = {}
+        filename = osp.join("/media/ekoller/T7/Predicted_Centers", scan_id + ".h5")
+        with h5py.File(filename, 'r') as h5file:
             for obj_id in h5file.keys():
-                # Get the group corresponding to the object id
                 obj_group = h5file[obj_id]
+                center = np.array(obj_group['center'])
+                points = np.array(obj_group['points'])
+                votes = int(obj_group['votes'][()])
+                size = int(obj_group["size"][()])
                 
-                # Retrieve data for center, points, votes, and size
-                center = obj_group['center'][:]
-                points = obj_group['points'][:]
-                votes = obj_group['votes'][:]
-                size = obj_group['size'][()]
-                
-                # Store the data back into the dictionary
+                # Add it back to the dictionary
                 all_centers[int(obj_id)] = {
                     'center': center,
                     'points': points,
                     'votes': votes,
-                    'size': size
+                    "size": size
                 }
         return all_centers
+        # all_centers= {}
+        # filepath = osp.join("/media/ekoller/T7/Predicted_Centers",scan_id + ".h5")
+        # with h5py.File(filepath, 'r') as h5file:
+        #     # Iterate through each object group
+        #     for obj_id in h5file.keys():
+        #         # Get the group corresponding to the object id
+        #         obj_group = h5file[obj_id]
+                
+        #         # Retrieve data for center, points, votes, and size
+        #         center = obj_group['center'][:]
+        #         points = obj_group['points'][:]
+        #         votes = obj_group['votes'][:]
+        #         size = obj_group['size'][()]
+                
+        #         # Store the data back into the dictionary
+        #         all_centers[int(obj_id)] = {
+        #             'center': center,
+        #             'points': points,
+        #             'votes': votes,
+        #             'size': size
+        #         }
+        # return all_centers
 
         
     def compute_statistics(self,scan_id, overlap_threshold):
@@ -726,6 +744,8 @@ class Evaluator():
         # print("presetn obj", present_obj_reference)
         # print("new obj", present_obj_scan)
         new_objects = list(set(gt_ids) - set(ref_gt_ids))
+        if len(new_objects) > 0:
+            print("scan id has new objects", scan_id)
 
         #print("gt object ids", gt_ids)
         #print("boundingboxes length", len(gt_boxes))
@@ -750,6 +770,8 @@ class Evaluator():
                                 
                     if (votes >= min_vote) and (size >= min_point):
                         predicted[obj_id] = obj_data
+                        if obj_id < 0:
+                            print("new object pointcloud")
 
                 #print("predicted ids", len(predicted))
                 matched_predicted_ids = set()
@@ -796,7 +818,7 @@ class Evaluator():
 
                     # now we look at the new object
                     elif (obj_id in new_objects):
-                        #print("new objects")
+                        #print("new objects get evaluatied")
                         closest_distance = float('inf')  # Start with an infinitely large distance
                         closest_pred_id = None
                         #go over the predicted things with negative predicted labels
@@ -818,6 +840,7 @@ class Evaluator():
                             center_difference.append(closest_distance)
                             matched = True
                             matched_predicted_ids.add(closest_pred_id)
+                            print("got matched")
                             if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
                                 #print("closest dist new", closest_distance)
                                 true_positives += 1
@@ -830,7 +853,7 @@ class Evaluator():
                         # If no prediction matched the ground truth center, count as false negative
                         elif not matched:
                             false_negatives += 1
-                            #print("go not matched")
+                            print("go not matched")
                 
                 # print("legnth of predicted items", len(predicted))
                 # print("lenght of matched predicted", len(matched_predicted_ids))
@@ -910,11 +933,11 @@ class Evaluator():
                 all_f1.append(f1s)
                 all_boxes.append(bounsingboxes)
                 all_centers.append(avg_centers)
-                print( precisions.shape,
-                recalls.shape,
-                f1s.shape,
-                bounsingboxes.shape,
-                avg_centers.shape)
+                # print( precisions.shape,
+                # recalls.shape,
+                # f1s.shape,
+                # bounsingboxes.shape,
+                # avg_centers.shape)
                 print("added results of scan id ", scan_id, " successfully")
                 pbar.update(1)
 
@@ -931,7 +954,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_object_prediction.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_object_prediction_TEST.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
@@ -953,7 +976,7 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
+    evaluate = Evaluator(cfg, 'test')
     print("start mask computation")
     with tqdm(total=len(cfg.parameters.overlap_th), desc="Overall Progress") as overall_pbar:
         for threshold in cfg.parameters.overlap_th:

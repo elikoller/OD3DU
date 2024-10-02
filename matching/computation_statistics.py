@@ -110,7 +110,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split[135:]
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
@@ -168,14 +168,15 @@ class Evaluator():
 
     def generate_pixel_level(self, segmentation,majorities):
         pixel_ids = np.zeros((self.image_height, self.image_width))
-
+        #print(majorities.keys())
         #iterate through all the segmentation regions of the dino segmentation
         for seg_region in segmentation:
             mask_id = seg_region["object_id"]
             #find the index of mask_id in frame_obj_ids
             #index = np.where(frame_obj_ids == mask_id)[0]
             #get to what the region mapped in the majorities
-            matched_id = majorities[mask_id]
+            #print("mask id", mask_id)
+            matched_id = majorities[str(mask_id)] # can be string or int depending on the input
             #print("matched id ", matched_id)
             mask = seg_region["mask"]
             boolean_mask = mask == 225
@@ -547,8 +548,8 @@ class Evaluator():
 
     
                 #get the correct computations and iteraste through every combination
-                for t_idx in enumerate (self.ths):
-                    for k_idx in enumerate (self.k_means):
+                for t_idx, th in enumerate (self.ths):
+                    for k_idx, k in enumerate (self.k_means):
                     
                         #translate the matched object ids to pixellevel of the frame
                         cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx])
@@ -917,15 +918,15 @@ class Evaluator():
         if self.split == "test":
             print("best scan id is ", best_scene, "with best f1 ", best_f1 )
         #create sesult dict
-        result = {"cosine_iou_metric_precision": all_cosine_metric_precision,
-                  "cosine_iou_metric_recall": all_cosine_metric_recall,
-                  "cosine_mectric_f1": all_cosine_metric_f1
+        result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
+                  "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
+                  "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0)
                 }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_135.180.pkl")
+        result_file_path = osp.join(result_dir,  "testset.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
@@ -933,6 +934,7 @@ class Evaluator():
               
 
             
+
 
 
 def parse_args():

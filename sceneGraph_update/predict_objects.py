@@ -100,7 +100,7 @@ class Evaluator():
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
-
+        self.all_scans_split.sort()
         if self.rescan:
             self.scan_ids = self.all_scans_split
         else:
@@ -498,6 +498,8 @@ class Evaluator():
 
             #decide it it is a predicted object
             if (largest_cluster_votes >= self.minimum_votes) and (len(cluster_pcl) >= self.minimum_points):
+                if(obj_id < 0 ):
+                    print("new object detected", obj_id)
                 #create the objec center
                 obj_center = np.median(cluster_pcl, axis= 0)
                 #return the object for the evaluation
@@ -515,39 +517,58 @@ class Evaluator():
  
     
     def compute(self):
-        workers = 1
-        
-        # parallelize the computations
-        with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
-            futures = {executor.submit(self.predict_objects_scan, scan_id): scan_id for scan_id in self.scan_ids}
+        # Use tqdm for progress bar, iterating as tasks are completed
+        with tqdm(total=len(self.scan_ids)) as pbar:
+                for scan_id in self.scan_ids:
+                    centers = self.predict_objects_scan(scan_id)
+                    result_file_path = osp.join(self.out_dir, scan_id + ".h5")
+                    # common.write_pkl_data( centers, result_file_path)
+                    with h5py.File(result_file_path, 'w') as h5file:
+                        for obj_id, data in centers.items():
+                            # Save the center, points, and votes for each object
+                            obj_group = h5file.create_group(str(obj_id))
+                            obj_group.create_dataset('center', data=data['center'])
+                            obj_group.create_dataset('points', data=data['points'])
+                            obj_group.create_dataset('votes', data=data['votes'])
+                            obj_group.create_dataset('size', data=data['size'])
+                    print("added results of scan id ", scan_id, " successfully")
             
-            # Use tqdm for progress bar, iterating as tasks are completed
-            with tqdm(total=len(self.scan_ids)) as pbar:
-                for future in concurrent.futures.as_completed(futures):
-                    scan_id = futures[future]
-                    try:
-                        centers = future.result()
-
-                        result_file_path = osp.join(self.out_dir, scan_id + ".pkl")
-                        # common.write_pkl_data( centers, result_file_path)
-                        with h5py.File(result_file_path, 'w') as h5file:
-                            for obj_id, data in centers.items():
-                                # Save the center, points, and votes for each object
-                                obj_group = h5file.create_group(str(obj_id))
-                                obj_group.create_dataset('center', data=data['center'])
-                                obj_group.create_dataset('points', data=data['points'])
-                                obj_group.create_dataset('votes', data=data['votes'])
-                                obj_group.create_dataset('size', data=data['size'])
-                        print("added results of scan id ", scan_id, " successfully")
-                    except Exception as exc:
-                        print(f"Scan {scan_id} generated an exception: {exc}")
-                        print("Traceback details:")
-                        traceback.print_exc()
-                    
+                
                     # progressed
                     pbar.update(1)
+        # workers = 1
+        
+        # # parallelize the computations
+        # with concurrent.futures.ProcessPoolExecutor(max_workers= workers) as executor:
+        #     futures = {executor.submit(self.predict_objects_scan, scan_id): scan_id for scan_id in self.scan_ids}
+            
+        #     # Use tqdm for progress bar, iterating as tasks are completed
+        #     with tqdm(total=len(self.scan_ids)) as pbar:
+        #         for future in concurrent.futures.as_completed(futures):
+        #             scan_id = futures[future]
+        #             try:
+        #                 centers = future.result()
 
-        print("Done")
+        #                 result_file_path = osp.join(self.out_dir, scan_id + ".pkl")
+        #                 # common.write_pkl_data( centers, result_file_path)
+        #                 with h5py.File(result_file_path, 'w') as h5file:
+        #                     for obj_id, data in centers.items():
+        #                         # Save the center, points, and votes for each object
+        #                         obj_group = h5file.create_group(str(obj_id))
+        #                         obj_group.create_dataset('center', data=data['center'])
+        #                         obj_group.create_dataset('points', data=data['points'])
+        #                         obj_group.create_dataset('votes', data=data['votes'])
+        #                         obj_group.create_dataset('size', data=data['size'])
+        #                 print("added results of scan id ", scan_id, " successfully")
+        #             except Exception as exc:
+        #                 print(f"Scan {scan_id} generated an exception: {exc}")
+        #                 print("Traceback details:")
+        #                 traceback.print_exc()
+                    
+        #             # progressed
+        #             pbar.update(1)
+
+        # print("Done")
         
         
        
@@ -570,7 +591,6 @@ def main():
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
     evaluate = Evaluator(cfg, 'test')
-    print("start mask computation")
     evaluate.compute()
    
 
