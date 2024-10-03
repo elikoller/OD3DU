@@ -431,90 +431,90 @@ class Evaluator():
                     object_id = frame_matches[str(dino_id)]
                     #print("matched id ", object_id)
                     
-                    
-
-                    #isolate only the object pointcloud
-                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
-                    #not a new object so regular precedure
-                    if object_id > 0:
-                        #now we need to find out if we add it to the pointcloud of the object it mapped to or not
-                        if object_id not in all_clusters:
-                            #print("create first cluter obj_id ", object_id)
-                            #there are no clusters & votes stored for this object jet
-                            all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
-                        #object already has pointclouds we need to see if we merge or add a new cluster
-                        else:
-                            #each new cluster starts unmerged
-                            merged = False
-                            max_overlap = 0
-                            best_cluster_index = None
-                            for i, cluster_data in enumerate(all_clusters[object_id]):
-                                cluster = cluster_data['cluster']
-
-                                #add to the cluster with the most overlap
-                                overlap = self.do_pcl_overlap(obj_pcl, cluster)
-
-                                # keep track of the most overlap cluste
-                                if overlap > overlap_threshold and overlap > max_overlap:
-                                    max_overlap = overlap
-                                    best_cluster_index = i
-                                
-                            if best_cluster_index is not None:
-                                # Merge the point clouds with the best cluster
-                                best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
-                                merged_points = np.vstack((obj_pcl, best_cluster))
-                                
-                                # Update the best cluster with the merged points
-                                all_clusters[object_id][best_cluster_index]['cluster'] = merged_points
-                                
-                                # Increment the vote count for the best cluster
-                                all_clusters[object_id][best_cluster_index]['votes'] += 1
-
-                                # Mark as merged
-                                merged = True
-                            if not merged:
-                                all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
-                    #new object
-                    else:
-                        #get the negative keys
-                        negative_keys = [object_id for object_id in all_clusters.keys() if object_id < 0]
-                        
-                        #no negative keys yet
-                        if len(negative_keys) == 0:
-                            new_obj_idx = new_obj_idx - 1
-                            all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
-                        #since we don't know the correspondance of the points we just add id to the new cluster with the most points
-                        else:
-                            max_overlap = 0
-                            best_cluster_index = None
-                            best_object_id = None
-
-                            # iterate over every cluster to get the one with the most overlap
-                            for neg_key in negative_keys:
-                                for i, cluster_data in enumerate(all_clusters[neg_key]):
+                    #tbc added the if statement that id must be bigger than 0
+                    if object_id > 0: #tbc
+                        #isolate only the object pointcloud
+                        obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
+                        #not a new object so regular precedure
+                        if object_id > 0:
+                            #now we need to find out if we add it to the pointcloud of the object it mapped to or not
+                            if object_id not in all_clusters:
+                                #print("create first cluter obj_id ", object_id)
+                                #there are no clusters & votes stored for this object jet
+                                all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
+                            #object already has pointclouds we need to see if we merge or add a new cluster
+                            else:
+                                #each new cluster starts unmerged
+                                merged = False
+                                max_overlap = 0
+                                best_cluster_index = None
+                                for i, cluster_data in enumerate(all_clusters[object_id]):
                                     cluster = cluster_data['cluster']
+
+                                    #add to the cluster with the most overlap
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
-                                    # Track the cluster with the highest overlap
+                                    # keep track of the most overlap cluste
                                     if overlap > overlap_threshold and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
-                                        best_object_id = neg_key
+                                    
+                                if best_cluster_index is not None:
+                                    # Merge the point clouds with the best cluster
+                                    best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
+                                    merged_points = np.vstack((obj_pcl, best_cluster))
+                                    
+                                    # Update the best cluster with the merged points
+                                    all_clusters[object_id][best_cluster_index]['cluster'] = merged_points
+                                    
+                                    # Increment the vote count for the best cluster
+                                    all_clusters[object_id][best_cluster_index]['votes'] += 1
 
-                            # we found a best cluster so merge it
-                            if best_object_id is not None and best_cluster_index is not None:
-                                best_cluster = all_clusters[best_object_id][best_cluster_index]['cluster']
-                                merged_points = np.vstack((obj_pcl, best_cluster))
-
-                                # Update the best cluster with the merged points
-                                all_clusters[best_object_id][best_cluster_index]['cluster'] = merged_points
-
-                                # increment the vote
-                                all_clusters[best_object_id][best_cluster_index]['votes'] += 1
-                            else:
-                                # did not find a good cluster create a new one
-                                new_obj_idx = new_obj_idx -1
+                                    # Mark as merged
+                                    merged = True
+                                if not merged:
+                                    all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
+                        #new object
+                        else:
+                            #get the negative keys
+                            negative_keys = [object_id for object_id in all_clusters.keys() if object_id < 0]
+                            
+                            #no negative keys yet
+                            if len(negative_keys) == 0:
+                                new_obj_idx = new_obj_idx - 1
                                 all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
+                            #since we don't know the correspondance of the points we just add id to the new cluster with the most points
+                            else:
+                                max_overlap = 0
+                                best_cluster_index = None
+                                best_object_id = None
+
+                                # iterate over every cluster to get the one with the most overlap
+                                for neg_key in negative_keys:
+                                    for i, cluster_data in enumerate(all_clusters[neg_key]):
+                                        cluster = cluster_data['cluster']
+                                        overlap = self.do_pcl_overlap(obj_pcl, cluster)
+
+                                        # Track the cluster with the highest overlap
+                                        if overlap > overlap_threshold and overlap > max_overlap:
+                                            max_overlap = overlap
+                                            best_cluster_index = i
+                                            best_object_id = neg_key
+
+                                # we found a best cluster so merge it
+                                if best_object_id is not None and best_cluster_index is not None:
+                                    best_cluster = all_clusters[best_object_id][best_cluster_index]['cluster']
+                                    merged_points = np.vstack((obj_pcl, best_cluster))
+
+                                    # Update the best cluster with the merged points
+                                    all_clusters[best_object_id][best_cluster_index]['cluster'] = merged_points
+
+                                    # increment the vote
+                                    all_clusters[best_object_id][best_cluster_index]['votes'] += 1
+                                else:
+                                    # did not find a good cluster create a new one
+                                    new_obj_idx = new_obj_idx -1
+                                    all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
 
 
         #print("all clusters legnth", len(all_clusters))
@@ -785,78 +785,80 @@ class Evaluator():
                     #print("object id", obj_id)
                     #we are not looking at a unseen object
                     #get the boundingbox for the object to calculate the threshold
-                    gt_center = gt_centers[obj_id]
-                    boundingbox = gt_boxes[obj_id]
-                    matched = False
-                    #look at the seen objects
-                    if (obj_id not in new_objects):
-                        #the object was predicted
-                        if (obj_id in predicted.keys()):
-                               
-                                #access the center
-                                pred_center = predicted[obj_id]['center']
-                                distance = np.linalg.norm(pred_center - gt_center)
-                                center_difference.append(distance)
-                                #print("distance", distance)
-                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
+                    #tbc remove the if obje id not in new objects
+                    if obj_id not in new_objects:
+                        gt_center = gt_centers[obj_id]
+                        boundingbox = gt_boxes[obj_id]
+                        matched = False
+                        #look at the seen objects
+                        if (obj_id not in new_objects):
+                            #the object was predicted
+                            if (obj_id in predicted.keys()):
+                                
+                                    #access the center
+                                    pred_center = predicted[obj_id]['center']
+                                    distance = np.linalg.norm(pred_center - gt_center)
+                                    center_difference.append(distance)
+                                    #print("distance", distance)
+                                    bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
+                                    ious.append(bbox_iou)
+                                    matched = True
+                                    matched_predicted_ids.add(obj_id)
+                                    if self.is_in_boundingbox(pred_center, boundingbox):
+                                        #Predicted a Center and it is Within the Bounding Box (True Positive)
+                                        true_positives = true_positives + 1
+                                    
+                                    else:
+                                        #Predicted a Center but it is Outside the Bounding Box (False Positive)
+                                        false_positives = false_positives + 1
+                                    
+                                        
+
+                            # If no prediction matched the ground truth center, count as false negative
+                            elif not matched:
+                                false_negatives += 1
+                                #print("go not matched")
+
+                        # now we look at the new object
+
+
+                        elif (obj_id in new_objects):
+                            #print("new objects get evaluatied")
+                            closest_distance = float('inf')  # Start with an infinitely large distance
+                            closest_pred_id = None
+                            #go over the predicted things with negative predicted labels
+                            for pred_id, pred_data in predicted.items():
+                                #only take it into consideration if it is actually new
+                                if pred_id < 0:
+                                    pred_center = pred_data['center']
+                                    distance = np.linalg.norm(pred_center - gt_center)
+                                    # Update the closest predicted center
+                                    if distance < closest_distance:
+                                        closest_distance = distance
+                                        closest_pred_id = pred_id
+
+
+                            if closest_pred_id is not None:
+                                center_difference.append(closest_distance)
+                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
                                 ious.append(bbox_iou)
+                                center_difference.append(closest_distance)
                                 matched = True
-                                matched_predicted_ids.add(obj_id)
-                                if self.is_in_boundingbox(pred_center, boundingbox):
-                                    #Predicted a Center and it is Within the Bounding Box (True Positive)
-                                    true_positives = true_positives + 1
+                                matched_predicted_ids.add(closest_pred_id)
+                                #print("got matched")
+                                if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
+                                    #print("closest dist new", closest_distance)
+                                    true_positives += 1
                                 
                                 else:
                                     #Predicted a Center but it is Outside the Bounding Box (False Positive)
                                     false_positives = false_positives + 1
-                                   
-                                    
+                                
 
-                        # If no prediction matched the ground truth center, count as false negative
-                        elif not matched:
-                            false_negatives += 1
-                            #print("go not matched")
-
-                    # now we look at the new object
-
-
-                    elif (obj_id in new_objects):
-                        #print("new objects get evaluatied")
-                        closest_distance = float('inf')  # Start with an infinitely large distance
-                        closest_pred_id = None
-                        #go over the predicted things with negative predicted labels
-                        for pred_id, pred_data in predicted.items():
-                            #only take it into consideration if it is actually new
-                            if pred_id < 0:
-                                pred_center = pred_data['center']
-                                distance = np.linalg.norm(pred_center - gt_center)
-                                # Update the closest predicted center
-                                if distance < closest_distance:
-                                    closest_distance = distance
-                                    closest_pred_id = pred_id
-
-
-                        if closest_pred_id is not None:
-                            center_difference.append(closest_distance)
-                            bbox_iou = self.boundingbox_iou(boundingbox, predicted[closest_pred_id]["points"])
-                            ious.append(bbox_iou)
-                            center_difference.append(closest_distance)
-                            matched = True
-                            matched_predicted_ids.add(closest_pred_id)
-                            #print("got matched")
-                            if self.is_in_boundingbox(predicted[closest_pred_id]['center'], boundingbox):
-                                #print("closest dist new", closest_distance)
-                                true_positives += 1
-                            
-                            else:
-                                #Predicted a Center but it is Outside the Bounding Box (False Positive)
-                                false_positives = false_positives + 1
-                               
-
-                        # If no prediction matched the ground truth center, count as false negative
-                        elif not matched:
-                            false_negatives += 1
-                            #print("go not matched")
+                            # If no prediction matched the ground truth center, count as false negative
+                            elif not matched:
+                                false_negatives += 1
+                                #print("go not matched")
 
 
 
@@ -955,6 +957,7 @@ class Evaluator():
                 "iou_boxes": np.mean(all_boxes,  axis = 0),
                 "mean_center_difference": np.mean(all_centers,  axis = 0)
                 }
+    
     
         print( np.mean(all_precision, axis = 0),  np.mean(all_recall,  axis = 0), np.mean(all_f1,  axis = 0), np.mean(all_boxes,  axis = 0), np.mean(all_centers,  axis = 0))
         #save the file in the results direcrtory

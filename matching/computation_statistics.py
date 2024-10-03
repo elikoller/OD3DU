@@ -110,7 +110,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split[:45]
         else:
             self.scan_ids = ref_scans_split
 
@@ -161,6 +161,8 @@ class Evaluator():
                 #too far away
                 majorities[frame_id] =unique_new_obj
                 unique_new_obj = unique_new_obj -1
+                
+
             else:
                 majorities[frame_id]= most_common_class
 
@@ -176,7 +178,7 @@ class Evaluator():
             #index = np.where(frame_obj_ids == mask_id)[0]
             #get to what the region mapped in the majorities
             #print("mask id", mask_id)
-            matched_id = majorities[str(mask_id)] # can be string or int depending on the input
+            matched_id = majorities[mask_id] # can be string or int depending on the input
             #print("matched id ", matched_id)
             mask = seg_region["mask"]
             boolean_mask = mask == 225
@@ -575,8 +577,10 @@ class Evaluator():
                             #get the max id
                             gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
                             
+                          
                             #if the gt id is 0 we have no info
                             if gt_max_id != 0:
+                                #tbc decomment this section
                                 #check if it should be a new object 
                                 if id < 0:
                                     #if is new object but did not get detected
@@ -587,10 +591,11 @@ class Evaluator():
                                     else:
                                         tp += 1
                                         detected_gt_ids.add(gt_max_id)
-                               
+                            
                 
 
                                 #we look at a seen object
+                                #tbc decomment else and put the part below into else
                                 else:
                                     #the predicted id does not match the gt so already wront
                                     if id != gt_max_id:
@@ -763,6 +768,7 @@ class Evaluator():
                         computed_patches = self.quantize_to_patch_level(cosine_pixel_level)
 
                         img_ids = np.unique(computed_patches)
+                    
                         #initialize everything
                         tp, fp, fn = 0, 0, 0
                         detected_gt_ids = set()
@@ -778,32 +784,36 @@ class Evaluator():
                             gt_ids_at_coords = gt_patches[tuple(coords.T)]
                             #get the max id
                             gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
-                            
-                            #if the gt id is 0 we have no info
-                            if gt_max_id != 0:
-                                #check if it should be a new object 
-                                if id < 0:
-                                    #if is new object but did not get detected
-                                    if gt_max_id not in new_objects:
-                                        fp += 1
-                                        continue
-                                    #case predicted new and gt_max also belongs to new obj
-                                    else:
-                                        tp += 1
-                                        detected_gt_ids.add(gt_max_id)
-                               
-                
 
-                                #we look at a seen object
-                                else:
-                                    #the predicted id does not match the gt so already wront
-                                    if id != gt_max_id:
-                                        fp += 1
-                                        continue
-                                    #the the id == gt_max id
-                                    else:
-                                        tp += 1
-                                        detected_gt_ids.add(gt_max_id)
+                            if gt_max_id not in new_objects: #tbc
+                                #if the gt id is 0 we have no info
+                                if gt_max_id != 0:
+                                    #check if it should be a new object 
+                                    # if id < 0:  decomment this block!!
+                                    #     #if is new object but did not get detected
+                                    #     if gt_max_id not in new_objects:
+                                    #         fp += 1
+                                    #         continue
+                                    #     #case predicted new and gt_max also belongs to new obj
+                                    #     else:
+                                    #         tp += 1
+                                    #         detected_gt_ids.add(gt_max_id)
+                                
+                    
+
+                                    #we look at a seen object
+                                    #else:
+                                    if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
+                                        #the predicted id does not match the gt so already wront
+                                        if (id != gt_max_id):
+                                            #tbc
+                                            if (id > 0):
+                                                fp += 1
+                                                continue
+                                        #the the id == gt_max id
+                                        else:
+                                            tp += 1
+                                            detected_gt_ids.add(gt_max_id)
 
                         #now we also comlete false negatives so objects which got not detected
                         gt_ids = np.unique(gt_patches)   
@@ -812,7 +822,7 @@ class Evaluator():
                                 continue  # Skip background
                             
                             # If this ground truth object was not detected
-                            if gt_id not in detected_gt_ids:
+                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects): #tbc the new object part
                                 fn += 1
 
 
@@ -906,10 +916,7 @@ class Evaluator():
 
 
         print("writing the file")
-        #we want the result over all scenes
-        # mean_cosine_iou_metric_precision = np.mean(np.array(all_cosine_iou_metric_precision), axis=0)
-        # mean_cosine_iou_metric_recall = np.mean(np.array(all_cosine_iou_metric_recall), axis=0)
-        # mean_cosine_metric_f1 = np.mean(np.array(all_cosine_iou_metric_f1), axis= 0)
+       
       
         # print("precision", mean_cosine_iou_metric_precision)
         # print("recall", mean_cosine_iou_metric_recall) 
@@ -917,16 +924,24 @@ class Evaluator():
 
         if self.split == "test":
             print("best scan id is ", best_scene, "with best f1 ", best_f1 )
+
+
         #create sesult dict
-        result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
-                  "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
-                  "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0)
+        # result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
+        #           "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
+        #           "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0)
+        #         }
+
+
+        result = {"cosine_iou_metric_precision": all_cosine_metric_precision,
+                "cosine_iou_metric_recall": all_cosine_metric_recall,
+                "cosine_mectric_f1":all_cosine_metric_f1
                 }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "testset.pkl")
+        result_file_path = osp.join(result_dir,  "ref_obj_0.45.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
@@ -954,17 +969,18 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    # evaluate = Evaluator(cfg, 'train')
-    # print("start avg computation")
-    # evaluate.compute("avg")
-    # print("start max computation")
-    # evaluate.compute("max")
-    # print("start median computation")
-    # evaluate.compute("median")
-
-    evaluate = Evaluator(cfg, 'test')
+    print("re obje obnly")
+    evaluate = Evaluator(cfg, 'train')
     print("start avg computation")
     evaluate.compute("avg")
+    print("start max computation")
+    evaluate.compute("max")
+    print("start median computation")
+    evaluate.compute("median")
+
+    # evaluate = Evaluator(cfg, 'test')
+    # print("start avg computation")
+    # evaluate.compute("avg")
    
   
 
