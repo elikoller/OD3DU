@@ -785,35 +785,38 @@ class Evaluator():
                             #get the max id
                             gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
 
-                            if gt_max_id not in new_objects: #tbc
-                                #if the gt id is 0 we have no info
-                                if gt_max_id != 0:
-                                    #check if it should be a new object 
-                                    # if id < 0:  decomment this block!!
-                                    #     #if is new object but did not get detected
-                                    #     if gt_max_id not in new_objects:
-                                    #         fp += 1
-                                    #         continue
-                                    #     #case predicted new and gt_max also belongs to new obj
-                                    #     else:
-                                    #         tp += 1
-                                    #         detected_gt_ids.add(gt_max_id)
-                                
-                    
+                            #if the gt id is 0 we have no info
+                            if gt_max_id != 0:
+                                #check if it should be a new object 
+                                # if id < 0:  decomment this block!!
+                                #     #if is new object but did not get detected
+                                #     if gt_max_id not in new_objects:
+                                #         fp += 1
+                                #         continue
+                                #     #case predicted new and gt_max also belongs to new obj
+                                #     else:
+                                #         tp += 1
+                                #         detected_gt_ids.add(gt_max_id)
+                            
+                
 
-                                    #we look at a seen object
-                                    #else:
-                                    if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
-                                        #the predicted id does not match the gt so already wront
-                                        if (id != gt_max_id):
-                                            #tbc
-                                            if (id > 0):
-                                                fp += 1
-                                                continue
-                                        #the the id == gt_max id
-                                        else:
-                                            tp += 1
-                                            detected_gt_ids.add(gt_max_id)
+                                #we look at a seen object
+                                #else:
+                                if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
+                                    #the predicted id does not match the gt so already wront
+                                    if (id != gt_max_id):
+                                        #tbc
+                                        if (id > 0):
+                                            fp += 1
+                                            continue
+                                    #the the id == gt_max id
+                                    else:
+                                        tp += 1
+                                        detected_gt_ids.add(gt_max_id)
+                                #tbc added logic for new objects
+                                elif gt_max_id in new_objects:
+                                    if id > 0:
+                                        fp += 1
 
                         #now we also comlete false negatives so objects which got not detected
                         gt_ids = np.unique(gt_patches)   
@@ -822,7 +825,7 @@ class Evaluator():
                                 continue  # Skip background
                             
                             # If this ground truth object was not detected
-                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects): #tbc the new object part
+                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects):  #tbc the new objects part
                                 fn += 1
 
 
@@ -941,7 +944,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "ref_obj_0.45.pkl")
+        result_file_path = osp.join(result_dir,  "new_obj_0.45.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
@@ -969,12 +972,12 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    print("re obje obnly")
+    print("new obj")
     evaluate = Evaluator(cfg, 'train')
     print("start avg computation")
     evaluate.compute("avg")
-    print("start max computation")
-    evaluate.compute("max")
+    # print("start max computation")
+    # evaluate.compute("max")
     print("start median computation")
     evaluate.compute("median")
 

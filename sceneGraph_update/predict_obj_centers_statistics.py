@@ -785,8 +785,7 @@ class Evaluator():
                     #print("object id", obj_id)
                     #we are not looking at a unseen object
                     #get the boundingbox for the object to calculate the threshold
-                    #tbc remove the if obje id not in new objects
-                    if obj_id not in new_objects:
+                    if obj_id not in new_objects: #tbc remove this if
                         gt_center = gt_centers[obj_id]
                         boundingbox = gt_boxes[obj_id]
                         matched = False
@@ -803,11 +802,11 @@ class Evaluator():
                                     bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
                                     ious.append(bbox_iou)
                                     matched = True
-                                    matched_predicted_ids.add(obj_id)
+                                    matched_predicted_ids.add(obj_id) 
                                     if self.is_in_boundingbox(pred_center, boundingbox):
                                         #Predicted a Center and it is Within the Bounding Box (True Positive)
                                         true_positives = true_positives + 1
-                                    
+                                        
                                     else:
                                         #Predicted a Center but it is Outside the Bounding Box (False Positive)
                                         false_positives = false_positives + 1
@@ -963,7 +962,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "statistics_object_prediction_TEST_only_ref.pkl")
+        result_file_path = osp.join(result_dir,  "only_ref_obj.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
