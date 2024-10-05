@@ -121,7 +121,7 @@ class Evaluator():
     
         #output path for components
         #self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
-        self.out_dir = osp.join("/media/ekoller/T7/Predicted_matches")
+        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
         common.ensure_dir(self.out_dir)
 
      
@@ -422,7 +422,7 @@ class Evaluator():
 
         """  need to uncomment this again
         """
-        result_file_path = osp.join(self.out_dir,scan_id + "blabla" +".h5")
+        result_file_path = osp.join(self.out_dir,scan_id +".h5")
         with h5py.File(result_file_path, 'w') as hdf_file:
             for frame_idx, matches in all_matches.items():
                 # Create a group for each frame index
@@ -524,11 +524,12 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    # evaluate = Evaluator(cfg, 'train')
-    # evaluate.compute()
-    print("start computation for test set")
     evaluate = Evaluator(cfg, 'train')
     evaluate.compute()
+    print("start computation for test set")
+    evaluate = Evaluator(cfg, 'test')
+    evaluate.compute()
+   
     
    
   

@@ -22,7 +22,7 @@ models:
     features: 256
     out_channels: [256, 512, 1024, 1024]
     dataset: 'hypersim'
-    max_depth: 20
+    max_depth: 12
  
 
 # for sgaligner

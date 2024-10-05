@@ -18,5 +18,5 @@ model:
 
 parameters: 
     k_means: 5
-    threshold: 0.0
+    threshold: 0.6
     mode: "avg"

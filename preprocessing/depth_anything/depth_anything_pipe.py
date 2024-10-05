@@ -9,12 +9,13 @@ import sys
 from tracemalloc import start
 import cv2
 import numpy as np
-
+# Add the repository path to sys.path
+repo_path = osp.abspath(osp.join(osp.dirname(__file__), 'Depth-Anything-V2/metric_depth'))
+sys.path.append(repo_path)
 from depth_anything_v2.dpt import DepthAnythingV2
 
 
 from tqdm.auto import tqdm
-from PIL import Image
 from glob import glob
 ws_dir = osp.dirname(osp.dirname(osp.dirname(osp.abspath(__file__))))
 print(ws_dir)
@@ -43,17 +44,20 @@ print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 class DinoSegmentor():
     def __init__(self, cfg, split):
         self.cfg = cfg
+        self.split = split
         #model info
         self.encoder = cfg.models.encoder
         self.features = cfg.models.features
         self.out_channels = cfg.models.out_channels
         self.max_depth = cfg.models.max_depth
-        self.data_set = cfg.modes.data_set
+        self.data_set = cfg.models.dataset
         # 3RScan data info
 
         ## data dir
         self.data_root_dir = cfg.data.root_dir
+        self.scan_type = cfg.sgaligner.scan_type
         scan_dirname = '' if self.scan_type == 'scan' else 'out'
+        self.use_predicted = cfg.sgaligner.use_predicted
         scan_dirname = osp.join(scan_dirname, 'predicted') if self.use_predicted else scan_dirname
         self.scans_dir = osp.join(cfg.data.root_dir, scan_dirname)
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
@@ -177,8 +181,15 @@ class DinoSegmentor():
     def load_depth_model(self):
         
         print("--- load the model ----")
-        model = DepthAnythingV2(encoder=self.encoder, features=self.features, out_channels=self.out_channels, max_depth=self.max_depth)
-        model.load_state_dict(torch.load(f'checkpoints/depth_anything_v2_metric_{self.data_set}_{self.encoder}.pth', map_location='cpu'))
+        model_configs = {
+            'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+            'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+            'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]}
+        }
+        # model = DepthAnythingV2(encoder=self.encoder, features=self.features, out_channels=self.out_channels, max_depth=self.max_depth)
+        model = DepthAnythingV2(**{**model_configs[self.encoder], 'max_depth': self.max_depth})
+        model.load_state_dict(torch.load(f'/media/ekoller/T7/depth_anything_v2_metric_{self.data_set}_{self.encoder}.pth', map_location='cpu'))
+        model.cuda()
         model.eval()
         print("--- load model done ---")
        
@@ -213,7 +224,7 @@ class DinoSegmentor():
                 #img = Image.open(img_path).convert('RGB')
                 img_bgr = cv2.imread(img_path)
                 img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
+                img = cv2.resize(img, (224,172), interpolation=cv2.INTER_CUBIC)
                 #rotate it around if necessary
                 if self.img_rotate:
                     #img = img.transpose(Image.ROTATE_270)
@@ -222,17 +233,18 @@ class DinoSegmentor():
 
 
                 #do the magic
+                img_np = np.array(img)
 
                 #safe the image as a colourful mask 
                 depth_name = "frame-"+str(frame_idx)
-                result = model.infer_image(img)
-        
+                result = model.infer_image(img_np) #result is in m numpy
                 rotated_depth_image = cv2.rotate(result, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                #scale into mm
                 scaled_depth_image = rotated_depth_image * 1000
                 scaled_depth_image = np.clip(scaled_depth_image, 0, 65535).astype(np.uint16)
 
-                cv2.imwrite(osp.join(self.out_dir_objects, scan_id, depth_name) + '.pgm', scaled_depth_image)
+                #cv2.imwrite(osp.join(self.out_dir_objects, scan_id), depth_name + '.pgm', scaled_depth_image)
+                depth_file_path = osp.join(self.out_dir_objects, scan_id, f"{depth_name}.pgm")
+                cv2.imwrite(depth_file_path, scaled_depth_image)
                 #Image.fromarray(rotated_depth_image).save(osp.join(self.out_dir_objects, scan_id,depth_name) + '.pgm')  # Save as .pgm
 
 

@@ -104,7 +104,7 @@ class Evaluator():
 
         self.all_scans_split.sort()
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split[:90]
         else:
             self.scan_ids = ref_scans_split
     
@@ -535,11 +535,11 @@ class Evaluator():
             #downsample to store
             cluster_point_cloud = o3d.geometry.PointCloud()
             cluster_point_cloud.points = o3d.utility.Vector3dVector(largest_cluster)
-            voxel_size = 0.07  # Adjust this value based on your needs
+            voxel_size = 0.06  # Adjust this value based on your needs
             downsampled_point_cloud = cluster_point_cloud.voxel_down_sample(voxel_size=voxel_size)
             cl, ind = downsampled_point_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.75)
             cluster_pcl = np.asarray(cl.points)
-
+            
             #get the votes
             largest_cluster_votes = largest_cluster_data["votes"]
             #create the objec center
@@ -910,9 +910,9 @@ class Evaluator():
 
   
 
-        print("precision",precisions)
-        print("recall",recalls)
-        print("f1 scores", f1s)
+        # print("precision",precisions)
+        # print("recall",recalls)
+        # print("f1 scores", f1s)
         return precisions,recalls,f1s, boundingboxes, avg_center_distance
           
 
@@ -958,11 +958,11 @@ class Evaluator():
                 }
     
     
-        print( np.mean(all_precision, axis = 0),  np.mean(all_recall,  axis = 0), np.mean(all_f1,  axis = 0), np.mean(all_boxes,  axis = 0), np.mean(all_centers,  axis = 0))
+        #print( np.mean(all_precision, axis = 0),  np.mean(all_recall,  axis = 0), np.mean(all_f1,  axis = 0), np.mean(all_boxes,  axis = 0), np.mean(all_centers,  axis = 0))
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "only_ref_obj.pkl")
+        result_file_path = osp.join(result_dir,  "ref_obj.0.90.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
@@ -984,7 +984,7 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'test')
+    evaluate = Evaluator(cfg, 'train')
     print("start mask computation")
     with tqdm(total=len(cfg.parameters.overlap_th), desc="Overall Progress") as overall_pbar:
         for threshold in cfg.parameters.overlap_th:
