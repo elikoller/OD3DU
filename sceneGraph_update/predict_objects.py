@@ -385,89 +385,89 @@ class Evaluator():
                     #print("matched id ", object_id)
                     
                     
-
-                    #isolate only the object pointcloud
-                    obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
-                    #not a new object so regular precedure
                     if object_id > 0:
-                        #now we need to find out if we add it to the pointcloud of the object it mapped to or not
-                        if object_id not in all_clusters:
-                            #print("create first cluter obj_id ", object_id)
-                            #there are no clusters & votes stored for this object jet
-                            all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
-                        #object already has pointclouds we need to see if we merge or add a new cluster
-                        else:
-                            #each new cluster starts unmerged
-                            merged = False
-                            max_overlap = 0
-                            best_cluster_index = None
-                            for i, cluster_data in enumerate(all_clusters[object_id]):
-                                cluster = cluster_data['cluster']
-
-                                #add to the cluster with the most overlap
-                                overlap = self.do_pcl_overlap(obj_pcl, cluster)
-
-                                # keep track of the most overlap cluste
-                                if overlap > self.overlap_th and overlap > max_overlap:
-                                    max_overlap = overlap
-                                    best_cluster_index = i
-                                
-                            if best_cluster_index is not None:
-                                # Merge the point clouds with the best cluster
-                                best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
-                                merged_points = np.vstack((obj_pcl, best_cluster))
-                                
-                                # Update the best cluster with the merged points
-                                all_clusters[object_id][best_cluster_index]['cluster'] = merged_points
-                                
-                                # Increment the vote count for the best cluster
-                                all_clusters[object_id][best_cluster_index]['votes'] += 1
-
-                                # Mark as merged
-                                merged = True
-                            if not merged:
-                                all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
-                    #new object
-                    else:
-                        #get the negative keys
-                        negative_keys = [object_id for object_id in all_clusters.keys() if object_id < 0]
-                        
-                        #no negative keys yet
-                        if len(negative_keys) == 0:
-                            new_obj_idx = new_obj_idx - 1
-                            all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
-                        #since we don't know the correspondance of the points we just add id to the new cluster with the most points
-                        else:
-                            max_overlap = 0
-                            best_cluster_index = None
-                            best_object_id = None
-
-                            # iterate over every cluster to get the one with the most overlap
-                            for neg_key in negative_keys:
-                                for i, cluster_data in enumerate(all_clusters[neg_key]):
+                        #isolate only the object pointcloud
+                        obj_pcl = self.isolate_object_coordinates(world_coordinates_frame, result_mask)
+                        #not a new object so regular precedure
+                        if object_id > 0:
+                            #now we need to find out if we add it to the pointcloud of the object it mapped to or not
+                            if object_id not in all_clusters:
+                                #print("create first cluter obj_id ", object_id)
+                                #there are no clusters & votes stored for this object jet
+                                all_clusters[object_id] = [{'cluster': obj_pcl, 'votes': 1}]
+                            #object already has pointclouds we need to see if we merge or add a new cluster
+                            else:
+                                #each new cluster starts unmerged
+                                merged = False
+                                max_overlap = 0
+                                best_cluster_index = None
+                                for i, cluster_data in enumerate(all_clusters[object_id]):
                                     cluster = cluster_data['cluster']
+
+                                    #add to the cluster with the most overlap
                                     overlap = self.do_pcl_overlap(obj_pcl, cluster)
 
-                                    # Track the cluster with the highest overlap
+                                    # keep track of the most overlap cluste
                                     if overlap > self.overlap_th and overlap > max_overlap:
                                         max_overlap = overlap
                                         best_cluster_index = i
-                                        best_object_id = neg_key
+                                    
+                                if best_cluster_index is not None:
+                                    # Merge the point clouds with the best cluster
+                                    best_cluster = all_clusters[object_id][best_cluster_index]['cluster']
+                                    merged_points = np.vstack((obj_pcl, best_cluster))
+                                    
+                                    # Update the best cluster with the merged points
+                                    all_clusters[object_id][best_cluster_index]['cluster'] = merged_points
+                                    
+                                    # Increment the vote count for the best cluster
+                                    all_clusters[object_id][best_cluster_index]['votes'] += 1
 
-                            # we found a best cluster so merge it
-                            if best_object_id is not None and best_cluster_index is not None:
-                                best_cluster = all_clusters[best_object_id][best_cluster_index]['cluster']
-                                merged_points = np.vstack((obj_pcl, best_cluster))
-
-                                # Update the best cluster with the merged points
-                                all_clusters[best_object_id][best_cluster_index]['cluster'] = merged_points
-
-                                # increment the vote
-                                all_clusters[best_object_id][best_cluster_index]['votes'] += 1
-                            else:
-                                # did not find a good cluster create a new one
-                                new_obj_idx = new_obj_idx -1
+                                    # Mark as merged
+                                    merged = True
+                                if not merged:
+                                    all_clusters[object_id].append({'cluster': obj_pcl, 'votes': 1})
+                        #new object
+                        else:
+                            #get the negative keys
+                            negative_keys = [object_id for object_id in all_clusters.keys() if object_id < 0]
+                            
+                            #no negative keys yet
+                            if len(negative_keys) == 0:
+                                new_obj_idx = new_obj_idx - 1
                                 all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
+                            #since we don't know the correspondance of the points we just add id to the new cluster with the most points
+                            else:
+                                max_overlap = 0
+                                best_cluster_index = None
+                                best_object_id = None
+
+                                # iterate over every cluster to get the one with the most overlap
+                                for neg_key in negative_keys:
+                                    for i, cluster_data in enumerate(all_clusters[neg_key]):
+                                        cluster = cluster_data['cluster']
+                                        overlap = self.do_pcl_overlap(obj_pcl, cluster)
+
+                                        # Track the cluster with the highest overlap
+                                        if overlap > self.overlap_th and overlap > max_overlap:
+                                            max_overlap = overlap
+                                            best_cluster_index = i
+                                            best_object_id = neg_key
+
+                                # we found a best cluster so merge it
+                                if best_object_id is not None and best_cluster_index is not None:
+                                    best_cluster = all_clusters[best_object_id][best_cluster_index]['cluster']
+                                    merged_points = np.vstack((obj_pcl, best_cluster))
+
+                                    # Update the best cluster with the merged points
+                                    all_clusters[best_object_id][best_cluster_index]['cluster'] = merged_points
+
+                                    # increment the vote
+                                    all_clusters[best_object_id][best_cluster_index]['votes'] += 1
+                                else:
+                                    # did not find a good cluster create a new one
+                                    new_obj_idx = new_obj_idx -1
+                                    all_clusters[new_obj_idx] = [{'cluster': obj_pcl, 'votes': 1}]
 
 
         #print("all clusters legnth", len(all_clusters))

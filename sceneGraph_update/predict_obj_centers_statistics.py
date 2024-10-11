@@ -963,7 +963,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "ref_obj_statistics.pkl")
+        result_file_path = osp.join(result_dir,  "test_ref_obj_statistics_test.pkl")
         common.write_pkl_data(result, result_file_path)
             
     
