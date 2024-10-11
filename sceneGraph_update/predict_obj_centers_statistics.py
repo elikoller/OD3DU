@@ -923,9 +923,11 @@ class Evaluator():
         all_f1 = []
         all_boxes = []
         all_centers = []
-        best_scan_id = 0
-        best_f1 = 0
-        box = 0 
+        best_scenes = []
+        best_f1scores = []
+        best_precisions = []
+        best_recalls = []
+        best_distances = []
 
     
     # Use tqdm for progress bar, iterating as tasks are completed
@@ -940,11 +942,13 @@ class Evaluator():
                 all_f1.append(f1s)
                 all_boxes.append(bounsingboxes)
                 all_centers.append(avg_centers)
-                # print( precisions,
-                # recalls,
-                # f1s,
-                # bounsingboxes,
-                # avg_centers)
+
+
+                best_scenes.append(scan_id)
+                best_f1scores.append(f1s[0][0])
+                best_precisions.append(precisions[0][0])
+                best_recalls.append(recalls[0][0])
+                best_distances.append(avg_centers[0][0])
                 print("added results of scan id ", scan_id, " successfully")
                 pbar.update(1)
 
@@ -954,7 +958,12 @@ class Evaluator():
                 "recall": np.mean(all_recall,  axis = 0),
                 "f1": np.mean(all_f1,  axis = 0),
                 "iou_boxes": np.mean(all_boxes,  axis = 0),
-                "mean_center_difference": np.mean(all_centers,  axis = 0)
+                "mean_center_difference": np.mean(all_centers,  axis = 0),
+                "s_scene": best_scenes,
+                "s_precision":best_precisions, 
+                "s_recall": best_recalls,
+                "s_f1":best_f1scores,
+                "s_distance": best_distances
                 }
 
     

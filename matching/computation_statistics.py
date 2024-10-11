@@ -973,10 +973,6 @@ class Evaluator():
         result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
                   "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
                   "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0),
-                  "scenes": best_scenes,
-                  "precisions": best_precisions,
-                  "recalls": best_recalls,
-                  "f1scores": best_f1scores
                 }
 
 
