@@ -994,7 +994,7 @@ def main():
 
     #do it for the projections first
     #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
+    evaluate = Evaluator(cfg, 'test')
     print("start mask computation")
     with tqdm(total=len(cfg.parameters.overlap_th), desc="Overall Progress") as overall_pbar:
         for threshold in cfg.parameters.overlap_th:

@@ -110,7 +110,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split[:45]
+            self.scan_ids = self.all_scans_split
         else:
             self.scan_ids = ref_scans_split
 
@@ -178,7 +178,7 @@ class Evaluator():
             #index = np.where(frame_obj_ids == mask_id)[0]
             #get to what the region mapped in the majorities
             #print("mask id", mask_id)
-            matched_id = majorities[mask_id] # can be string or int depending on the input
+            matched_id = majorities[str(mask_id)] # can be string or int depending on the input
             #print("matched id ", matched_id)
             mask = seg_region["mask"]
             boolean_mask = mask == 225
