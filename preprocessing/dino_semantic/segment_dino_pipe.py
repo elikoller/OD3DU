@@ -142,7 +142,7 @@ class DinoSegmentor():
         common.ensure_dir(self.out_dir_color)
         common.ensure_dir(self.out_dir_objects)
         
-        self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
+    
 
 
 

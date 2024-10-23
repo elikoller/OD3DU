@@ -196,7 +196,6 @@ class Scan3rDinov2Generator():
         #         if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
         #             ref_scans_split.remove(done_scan)
                     
-        self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
         
     def register_model(self):
         
