@@ -1,5 +1,5 @@
 <div align='center'>
-<h2 align="center"> SceneGraphUpdate Bachelorthesis of Elena </h2>
+<h2 align="center"> OD3DU: Object Detection based 3D Scene Understanding </h2>
 
 <a href="https://y9miao.github.io/">Elena Koller</a><sup>1</sup>, 
 <a href="https://cvg.ethz.ch/team/Dr-Francis-Engelmann">Zuria Bauer</a><sup>1</sup> , 
@@ -7,20 +7,18 @@
 
 <sup>1</sup>ETH Zurich   
 
-I don't knwo what to write here but good template so to do: overwrite his stuff this is only a buffer right now
+OD3DU operates in low-dynamic real-world indoor environments. Given a reference scene graph representing the scene at time t0 and an RGB-D rescan of the scene at time ti, OD3DU predicts the reference 3D object instance centers in the rescan. Since the environment is low-dynamic, scene changes can not be captured directly by the camera but have to be inferred post-hoc.
 
 
-![teaser](./repo_info/TeaserImage.jpg)
+![teaser](./repo_img/pipeline_overview.png)
 </div>
 
 
 
 
-## News :newspaper:
 
-* **26. Mar 2024**: Code released.
 
-## Code Structure :clapper:
+## Code Structure:
 
 ```
 ├── BT
@@ -34,7 +32,7 @@ I don't knwo what to write here but good template so to do: overwrite his stuff 
 │   │── README.md                    
 ```
 
-### Dependencies :memo:
+### Dependencies:
 
 The project has been tested on Ubuntu 20.04.
 The main dependencies of the project are the following:
