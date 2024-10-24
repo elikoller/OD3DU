@@ -113,6 +113,10 @@ class Scan3rDinov2Generator():
                 self.all_scans_split.append(rescans[0])
 
 
+
+        print(f"CUDA Available: {torch.cuda.is_available()}")
+        print(f"CUDA Version: {torch.version.cuda}")
+    
         """
         differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
         """

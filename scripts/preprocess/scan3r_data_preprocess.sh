@@ -6,7 +6,7 @@ export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 
 # activate conda env
 # conda activate VLSG
-source $CONDA_BIN/activate BT
+source $CONDA_BIN/activate OD3DU
 
 cd $VLSG_SPACE
 python ./preprocessing/scan3r/preprocess_scan3r.py \
