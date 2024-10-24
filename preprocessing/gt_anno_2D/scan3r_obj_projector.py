@@ -59,6 +59,7 @@ class Scan3RIMGProjector():
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
 
+        
         ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split[:]:
             #self.all_scans_split.append(ref_scan)
@@ -69,7 +70,9 @@ class Scan3RIMGProjector():
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
+
         self.scan_ids = self.all_scans_split
+        print(len(self.scan_ids))
         
         # get save dir 
         self.save_dir = osp.join(self.scans_dir, 'files', 'gt_projection')

@@ -39,15 +39,8 @@ class Scan3ROBJAssociator():
         
         self.step = self.cfg.data.img.img_step
         
-        # get scans
-    #    for scan_data in self.scenes_configs:
-    #         if scan_data['type'] == self.split:
-    #             self.scan_ids.append(scan_data['reference'])
-    #             if self.use_rescan:
-    #                 rescan_ids = [scan['reference'] for scan in scan_data['scans']]
-    #                 self.scan_ids += rescan_ids 
-
-        self.rescan = True
+   
+        self.rescan = cfg.data.rescan
         scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
         all_scan_data = common.load_json(scan_info_file)
         self.refscans2scans = {}
@@ -60,19 +53,27 @@ class Scan3ROBJAssociator():
             for scan in scan_data['scans']:
                 self.refscans2scans[ref_scan_id].append(scan['reference'])
                 self.scans2refscans[scan['reference']] = ref_scan_id
-        self.resplit = "resplit_" if self.resplit else ""
+                
+        #take only the split file      
+        self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
+
+        
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
-            self.all_scans_split += self.refscans2scans[ref_scan]
-        if self.rescan:
-            self.scan_ids = self.all_scans_split
-        else:
-            self.scan_ids = ref_scans_split
-                    
-        self.scan_ids.sort()
+        for ref_scan in ref_scans_split[:]:
+            #self.all_scans_split.append(ref_scan)
+            # Check and add one rescan for the current reference scan
+            rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
+            self.all_scans_split.append(ref_scan)
+            if rescans:
+                # Add the first rescan (or any specific rescan logic)
+                self.all_scans_split.append(rescans[0])
+
+
+        self.scan_ids = self.all_scans_split
+        print(len(self.scan_ids))
         
         # 2D object id annotation
         self.obj_2D_anno_dir = osp.join(self.scans_dir, 'files', 'gt_projection', 'obj_id')

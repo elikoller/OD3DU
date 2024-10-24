@@ -97,7 +97,7 @@ class Scan3rDinov2Generator():
                 self.scans2refscans[scan['reference']] = ref_scan_id
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #print("ref scan split", ref_scans_split)
+        print("ref scan split", len(ref_scans_split))
         self.all_scans_split = []
         ## get all scans within the split(ref_scan + rescan)
         
@@ -112,10 +112,7 @@ class Scan3rDinov2Generator():
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
-
-
-        print(f"CUDA Available: {torch.cuda.is_available()}")
-        print(f"CUDA Version: {torch.version.cuda}")
+        
     
         """
         differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
@@ -130,7 +127,7 @@ class Scan3rDinov2Generator():
             self.scan_ids = self.all_scans_split
             #self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]#only take the rescans
             
-
+        print("self scans", len(self.scan_ids))
 
         #print("scan ids", len(self.scan_ids))
         ## images info
@@ -181,17 +178,6 @@ class Scan3rDinov2Generator():
         common.ensure_dir(self.out_dir_avg)
         common.ensure_dir(self.out_dir_max)
         common.ensure_dir(self.out_dir_median)
-
-         #since we stopped the computation look which ones are not done yet
-        if(self.dino):
-            for done_scan in self.all_scans_split:   
-                path_avg = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
-                path_max = Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
-                path_median= Path(osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
-                if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
-                    self.all_scans_split.remove(done_scan)
-        
-
         # if(self.proj):
         #     for done_scan in ref_scans_split:   
         #         path_avg = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
@@ -441,7 +427,7 @@ class Scan3rDinov2Generator():
     def generateFeatures(self):
         img_num = 0
         self.feature_generation_time = 0.0
-        #print("scanid in generate function", self.scan_ids)
+        print("scanid in generate function", len(self.scan_ids))
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 features_avg, features_max, features_median = self.generateFeaturesEachScan(scan_id)
@@ -601,13 +587,13 @@ def main():
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'split, for_proj= True)
-    # scan3r_gcvit_generator.register_model()
-    # scan3r_gcvit_generator.generateFeatures()
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, split, for_proj= True)
+    scan3r_gcvit_generator.register_model()
+    scan3r_gcvit_generator.generateFeatures()
 
     #also generate for the dino_:segmentation boundingboxes
     scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, split, for_dino_seg = True)
-    scan3r_gcvit_generator.register_model()
+    #scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
 
    
