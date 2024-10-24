@@ -17,9 +17,9 @@ model:
   name: DinoV2
 
 parameters:
-    voxel_size_overlap: 0.2 #for faster computation
-    minimum_votes: [1,2,3,4,5,6]
-    minimum_points: [5,10,15,20,25,30,35,40,45,50,55,60] 
-    overlap_th: [0.1,0.3,0.5]
+    voxel_size_overlap: 0.2 
+    minimum_votes: [3] 
+    minimum_points: [45] 
+    overlap_th: [0.1] 
     box_scale: 1
            

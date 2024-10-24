@@ -980,6 +980,7 @@ class Evaluator():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
 
 def main():
@@ -987,14 +988,15 @@ def main():
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
+    split = args.split
     print(f"Configuration file path: {cfg_file}")
 
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
-    #do it for the projections first
-    #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'test')
+
+    #do the evaluations for the train set; 
+    evaluate = Evaluator(cfg, split)
     print("start mask computation")
     with tqdm(total=len(cfg.parameters.overlap_th), desc="Overall Progress") as overall_pbar:
         for threshold in cfg.parameters.overlap_th:

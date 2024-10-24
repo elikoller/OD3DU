@@ -19,15 +19,15 @@ from utils import common, scan3r
 
 #I don't think I actually need this also adjust the script
 class Scan3ROBJAssociator():
-    def __init__(self, data_root_dir, split, cfg, resplit_files = False):
+    def __init__(self, cfg, split):
         self.cfg = cfg
         self.split = split
-        self.resplit = resplit_files
+        self.resplit = cfg.data.resplit
         self.use_rescan = self.cfg.data.rescan
-        self.data_root_dir = data_root_dir
+        self.data_root_dir = cfg.data.root_dir
         
         scan_dirname = ''
-        self.scans_dir = osp.join(data_root_dir, scan_dirname)
+        self.scans_dir = osp.join(self.data_root_dir, scan_dirname)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
         
@@ -138,18 +138,19 @@ class Scan3ROBJAssociator():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
         
 if __name__ == '__main__':
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
-    
-    # get env variable for Data_ROOT_DIR
-    Data_ROOT_DIR = os.getenv("Scan3R_ROOT_DIR")
-    # note that the original validation set includes the resplited val and test set
+    split = args.split
+    print(f"Configuration file path: {cfg_file}")
+
+    from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
    
     split = "train"
-    scan3r_img_projector = Scan3ROBJAssociator(Data_ROOT_DIR, split=split, cfg=cfg, resplit_files= True)
+    scan3r_img_projector = Scan3ROBJAssociator(cfg, split=split)
     scan3r_img_projector.annotate_scans()

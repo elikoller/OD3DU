@@ -159,7 +159,7 @@ class Evaluator():
             #thresthold the average majority of the distances, it it is above the threshold, give the id -1 which represents an unseen obj
             if average_distance < th:
                 #too far away
-                majorities[frame_id] =unique_new_obj
+                majorities[frame_id] = unique_new_obj
                 unique_new_obj = unique_new_obj -1
                 
 
@@ -178,7 +178,7 @@ class Evaluator():
             #index = np.where(frame_obj_ids == mask_id)[0]
             #get to what the region mapped in the majorities
             #print("mask id", mask_id)
-            matched_id = majorities[str(mask_id)] # can be string or int depending on the input
+            matched_id = majorities[mask_id]
             #print("matched id ", matched_id)
             mask = seg_region["mask"]
             boolean_mask = mask == 225
@@ -444,7 +444,7 @@ class Evaluator():
                     bbox_group = frame_group[bbox_key]
                     
                     #get te obj id
-                    object_id = bbox_group.attrs['object_id']
+                    object_id = int(bbox_group.attrs['object_id'])
                     
                     #get the boundingbox
                     bbox = bbox_group['bbox'][:]
@@ -478,8 +478,8 @@ class Evaluator():
                 
                 # Load the frame_id -> obj mappings
                 for frame_id in frame_group.keys():
-                    obj = frame_group[frame_id][()]
-                    matches[frame_id] = int(obj)  # Convert back to int
+                    obj = int(frame_group[frame_id][()])
+                    matches[int(frame_id)] = int(obj)  # Convert back to int
                 
                 loaded_matches[frame_idx] = matches 
 
@@ -998,6 +998,7 @@ class Evaluator():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
 
 def main():
@@ -1005,6 +1006,7 @@ def main():
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
+    split = args.split
     print(f"Configuration file path: {cfg_file}")
 
     from configs import config, update_config
@@ -1021,7 +1023,7 @@ def main():
     # print("start median computation")
     # evaluate.compute("median")
 
-    evaluate = Evaluator(cfg, 'test')
+    evaluate = Evaluator(cfg, split)
     print("start avg computation")
     evaluate.compute("avg")
    

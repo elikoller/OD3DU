@@ -586,6 +586,7 @@ class Scan3rDinov2Generator():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
 
 def main():
@@ -593,17 +594,19 @@ def main():
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
+    split = args.split
     print(f"Configuration file path: {cfg_file}")
 
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_proj= True)
+    # scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'split, for_proj= True)
     # scan3r_gcvit_generator.register_model()
     # scan3r_gcvit_generator.generateFeatures()
+
     #also generate for the dino_:segmentation boundingboxes
-    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, 'train', for_dino_seg = True)
+    scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, split, for_dino_seg = True)
     scan3r_gcvit_generator.register_model()
     scan3r_gcvit_generator.generateFeatures()
 

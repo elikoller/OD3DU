@@ -108,7 +108,7 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split # ["02b33e01-be2b-2d54-93fb-4145a709cec5", "fcf66d8a-622d-291c-8429-0e1109c6bb26" ]
+            self.scan_ids = self.all_scans_split 
         else:
             self.scan_ids = ref_scans_split
 
@@ -510,6 +510,7 @@ class Evaluator():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
 
 def main():
@@ -517,17 +518,15 @@ def main():
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
+    split = args.split
     print(f"Configuration file path: {cfg_file}")
 
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     #do it for the projections first
-    #also generate for the dino_:segmentation boundingboxes
-    evaluate = Evaluator(cfg, 'train')
-    evaluate.compute()
     print("start computation for test set")
-    evaluate = Evaluator(cfg, 'test')
+    evaluate = Evaluator(cfg, split)
     evaluate.compute()
    
     

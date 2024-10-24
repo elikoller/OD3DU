@@ -283,7 +283,7 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
     """
 
 
-    rescan = cfg.data.rescan
+    #scans info 
     scan_info_file = osp.join(scans_files_dir, '3RScan.json')
     all_scan_data = common.load_json(scan_info_file)
     refscans2scans = {}
@@ -296,25 +296,25 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
         for scan in scan_data['scans']:
             refscans2scans[ref_scan_id].append(scan['reference'])
             scans2refscans[scan['reference']] = ref_scan_id
+            
+    #take only the split file      
     resplit = "resplit_" if cfg.data.resplit else ""
-    ref_scans_split = list(np.genfromtxt(osp.join(osp.join(data_dir, 'files'), '{}_{}scans.txt'.format(split, resplit)), dtype=str))
+    ref_scans_split = np.genfromtxt(osp.join(scans_files_dir, '{}_{}scans.txt'.format(split, resplit)), dtype=str)
     #print("ref scan split", ref_scans_split)
-    #we want it for both scan and rescan
-    
-    for ref_scan in ref_scans_split:
+    all_scans_split = []
+
+    ## get all scans within the split(ref_scan + rescan)
+    for ref_scan in ref_scans_split[:]:
         #self.all_scans_split.append(ref_scan)
         # Check and add one rescan for the current reference scan
         rescans = [scan for scan in refscans2scans[ref_scan] if scan != ref_scan]
+        all_scans_split.append(ref_scan)
         if rescans:
             # Add the first rescan (or any specific rescan logic)
             all_scans_split.append(rescans[0])
-    
-    #we need the grapth structure for both the reference and the rescan
-    all_scans_split =list(ref_scans_split) + list(all_scans_split)
-
- 
 
     
+
     """
     elenas change
     """

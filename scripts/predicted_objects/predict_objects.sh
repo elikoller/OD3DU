@@ -1,4 +1,4 @@
-export VLSG_SPACE='/local/home/ekoller/BT'
+export OD3DU_SPACE='/local/home/ekoller/BT'
 export Scan3R_ROOT_DIR='/local/home/ekoller/R3Scan'
 export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 
@@ -6,8 +6,9 @@ export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 # conda activate VLSG   new_dino_seg
 source $CONDA_BIN/activate OD3DU
 
-cd $VLSG_SPACE
+cd $OD3DU_SPACE
 
 # generate patch-level features with Dinov2
 python ./sceneGraph_update/predict_objects.py \
-    --config ./sceneGraph_update/object_predictor.yaml
+    --config ./sceneGraph_update/object_predictor.yaml \
+    --split test

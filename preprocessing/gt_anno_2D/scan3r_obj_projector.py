@@ -22,14 +22,14 @@ this code segment is used by me but is not using the preprocessing!
 """
 
 class Scan3RIMGProjector():
-    def __init__(self, data_root_dir, split, use_rescan=False, resplit_files = False):
+    def __init__(self, cfg, split):
         self.split = split
-        self.resplit = resplit_files
-        self.use_rescan = use_rescan
-        self.data_root_dir = data_root_dir
+        self.resplit = cfg.data.resplit
+        self.use_rescan = cfg.data.rescan
+        self.data_root_dir = cfg.data.root_dir
         
         scan_dirname = ''
-        self.scans_dir = osp.join(data_root_dir, scan_dirname)
+        self.scans_dir = osp.join(self.data_root_dir, scan_dirname)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
         
@@ -39,14 +39,7 @@ class Scan3RIMGProjector():
         self.objs_configs = common.load_json(self.objs_config_file)
         self.scan_ids = []
         
-        # get scans
-        # for scan_data in self.scenes_configs:
-        #     if scan_data['type'] == self.split:
-        #         self.scan_ids.append(scan_data['reference'])
-        #         if self.use_rescan:
-        #             rescan_ids = [scan['reference'] for scan in scan_data['scans']]
-        #             self.scan_ids += rescan_ids
-        self.rescan = True
+        self.rescan = cfg.data.rescan
         scan_info_file = osp.join(self.scans_files_dir, '3RScan.json')
         all_scan_data = common.load_json(scan_info_file)
         self.refscans2scans = {}
@@ -59,20 +52,24 @@ class Scan3RIMGProjector():
             for scan in scan_data['scans']:
                 self.refscans2scans[ref_scan_id].append(scan['reference'])
                 self.scans2refscans[scan['reference']] = ref_scan_id
-        self.resplit = "resplit_" if self.resplit else ""
+                
+        #take only the split file      
+        self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
-        ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
-            self.all_scans_split += self.refscans2scans[ref_scan]
-        if self.rescan:
-            self.scan_ids = self.all_scans_split
-        else:
-            self.scan_ids = ref_scans_split
 
-                
-        self.scan_ids.sort()
+        ## get all scans within the split(ref_scan + rescan)
+        for ref_scan in ref_scans_split[:]:
+            #self.all_scans_split.append(ref_scan)
+            # Check and add one rescan for the current reference scan
+            rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
+            self.all_scans_split.append(ref_scan)
+            if rescans:
+                # Add the first rescan (or any specific rescan logic)
+                self.all_scans_split.append(rescans[0])
+
+        self.scan_ids = self.all_scans_split
         
         # get save dir 
         self.save_dir = osp.join(self.scans_dir, 'files', 'gt_projection')
@@ -182,17 +179,26 @@ class Scan3RIMGProjector():
         #global_id_map[hit_triangles_ids_valid_masks] = global_ids[hit_points_ids_valid]
         return color_map, obj_id_map #global_id_map
     
-        
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Preprocess Scan3R')
+    parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
+    return parser.parse_known_args()
+
+
 if __name__ == '__main__':
-    # get Data_ROOT_DIR   changed the variable to Scan3r_ROOT_DIR
-    Data_ROOT_DIR = os.getenv('Scan3R_ROOT_DIR')
-    # note that the original validation set includes the resplited val and test set
-    # scan3r_img_projector = Scan3RIMGProjector(Data_ROOT_DIR, split='val', use_rescan=True, resplit_files=True)
-    # step=1
-    # for idx in tqdm(range(len(scan3r_img_projector.scan_ids))):
-    #     scan3r_img_projector.project(idx, step=step)
-        
-    scan3r_img_projector = Scan3RIMGProjector(Data_ROOT_DIR, split='train', use_rescan=True, resplit_files=True)
+
+    args, _ = parse_args()
+    cfg_file = args.config
+    split = args.split
+    print(f"Configuration file path: {cfg_file}")
+
+    from configs import config, update_config
+    cfg = update_config(config, cfg_file, ensure_dir = False)
+       
+    scan3r_img_projector = Scan3RIMGProjector(cfg, split=split)
     step=1
     for idx in tqdm(range(len(scan3r_img_projector.scan_ids))):
         scan3r_img_projector.project(idx, step=step)
