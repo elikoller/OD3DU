@@ -23,6 +23,8 @@ this code segment is used by me but is not using the preprocessing!
 
 class Scan3RIMGProjector():
     def __init__(self, cfg, split):
+
+        #initialize the paths to access the data 
         self.split = split
         self.resplit = cfg.data.resplit
         self.use_rescan = cfg.data.rescan
@@ -59,7 +61,6 @@ class Scan3RIMGProjector():
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
 
-        
         ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split[:]:
             #self.all_scans_split.append(ref_scan)
@@ -72,7 +73,7 @@ class Scan3RIMGProjector():
 
 
         self.scan_ids = self.all_scans_split
-        print(len(self.scan_ids))
+  
         
         # get save dir 
         self.save_dir = osp.join(self.scans_dir, 'files', 'gt_projection')
@@ -87,13 +88,15 @@ class Scan3RIMGProjector():
     def __len__(self):
         return len(self.scan_ids)
 
+
     def project(self, scan_idx, step = 1):
         # get related files
         scan_id = self.scan_ids[scan_idx]
+        #get the mesh
         mesh_file = osp.join(self.scans_scenes_dir, scan_id, "labels.instances.annotated.v2.ply")
         
         
-        # get img info and camera intrinsics 
+        # get img info and camera intrinsics needed for projection
         camera_info = scan3r.load_intrinsics(self.scans_scenes_dir, scan_id)
         intrinsics = camera_info['intrinsic_mat']
         img_width = int(camera_info['width'])
@@ -118,7 +121,7 @@ class Scan3RIMGProjector():
         frame_idxs = scan3r.load_frame_idxs(self.scans_scenes_dir, scan_id)
         poses = scan3r.load_all_poses(self.scans_scenes_dir, scan_id, frame_idxs)
         
-        # project 3D model
+        # project 3D model based on raycasting on a pin hole model
         obj_id_imgs = {}
         #global_id_imgs = {}
         color_imgs = {}
@@ -126,6 +129,7 @@ class Scan3RIMGProjector():
             frame_idx = frame_idxs[idx]
             img_pose = poses[idx]
             img_pose_inv = np.linalg.inv(img_pose)
+            #do the raycasting to obtain the colour and object id
             color_map, obj_id_map = self.segmentResult(
                 scene, intrinsics, img_pose_inv, img_width, img_height, 
                 mesh_triangles, num_triangles, colors, obj_labels
@@ -159,13 +163,13 @@ class Scan3RIMGProjector():
     
     def segmentResult(self, scene, intrinsics, extrinsics, width, height,
                       mesh_triangles, num_triangles, colors, obj_ids): #global_ids
-        
+        #initialize the raycasting with the camera parameters
         rays = o3d.t.geometry.RaycastingScene.create_rays_pinhole(
             intrinsic_matrix = intrinsics.astype(np.float64),
             extrinsic_matrix = extrinsics.astype(np.float64),
             width_px = width, height_px = height
         )
-        
+        #initialize the rays and get the intersections
         ans = scene.cast_rays(rays)
         hit_triangles_ids = ans['primitive_ids'].numpy()
         hit_triangles_ids_valid_masks = (hit_triangles_ids<num_triangles)
@@ -175,12 +179,11 @@ class Scan3RIMGProjector():
         
         color_map = np.zeros((height,width,3), dtype=np.uint8)
         obj_id_map = np.zeros((height,width), dtype=np.uint8)
-        #global_id_map = np.zeros((height,width), dtype=np.uint8)
+       
 
         color_map[hit_triangles_ids_valid_masks] = colors[hit_points_ids_valid]
         obj_id_map[hit_triangles_ids_valid_masks] = obj_ids[hit_points_ids_valid]
-        #global_id_map[hit_triangles_ids_valid_masks] = global_ids[hit_points_ids_valid]
-        return color_map, obj_id_map #global_id_map
+        return color_map, obj_id_map 
     
 
 

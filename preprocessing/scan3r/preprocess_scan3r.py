@@ -18,9 +18,6 @@ sys.path.append(ws_dir)
 from utils import common, point_cloud, scan3r
 from configs import config, update_config
 
-#Modified by Elena line 35 to submit change that so that it works in general
-
-
 
 def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = None):
     scan_id = rel_data['scan']
@@ -39,14 +36,15 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     ply_data_npy_file = osp.join(data_dir, 'scenes', scan_id, 'data.npy')
     ply_data = None
 
-    # Modified by Elena, goal: overwrite the current version eben if there exists already the file
-    if(osp.isfile(ply_data_npy_file)):  #  changed that to overwrite existing data change it back to  the old version which is (osp.isfile(ply_data_npy_file)):
+    
+    if(osp.isfile(ply_data_npy_file)): 
         ply_data = np.load(ply_data_npy_file)
     else:
         # Load scene pcl
         ply_data = scan3r.save_ply_data(osp.join(data_dir, 'scenes'), 
             scan_id, "labels.instances.align.annotated.v2.ply", ply_data_npy_file)
         
+    #stack the points together
     points = np.stack([ply_data['x'], ply_data['y'], ply_data['z']]).transpose((1, 0))
 
     object_points = {}
@@ -65,12 +63,9 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
         obj_pt_idx = np.where(ply_data['objectId'] == object_id)
         obj_pcl = points[obj_pt_idx]
 
-        #since we rely on the projections we need all ids to be available in our graph -> basis calculation with every one of the pointclouds -> all object ids are inthere
+        #omit objects which are too small
         if obj_pcl.shape[0] < cfg.preprocess.min_obj_points: continue
-            # Handle cases with fewer points < 4
-            # cx = np.mean(obj_pcl[:, 0])
-            # cy = np.mean(obj_pcl[:, 1])
-            # cz = np.mean(obj_pcl[:, 2])
+            
         
         
         hull = ConvexHull(obj_pcl)
@@ -126,26 +121,24 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
                 if triple[:2] not in pairs:
                     pairs.append([sub, obj])
 
-    # if len(pairs) == 0:
-    #     return -1
 
 
 
-    #add the bounding boxes for the ids
+    #start bounding box computat
     bounding_boxes = []
     object_id_pkl = objects_ids
 
     """
-    Compute the boundingboxes based on the mesh and the object centers!
+    Compute the boundingboxes based on the mesh and the object centers
 
     """ 
-    #access the things for the mesh
+    #access the the mesh
     pathToMesh = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
     ply_data = PlyData.read(pathToMesh)
     vertices = ply_data['vertex'].data
     vertex_array = np.array([list(vertex) for vertex in vertices])
 
-    # Extract x, y, z coordinates and objectId
+    #extract x, y, z coordinates and objectId
     x = vertex_array[:, 0]
     y = vertex_array[:, 1]
     z = vertex_array[:, 2]
@@ -236,8 +229,7 @@ def process_scan(data_dir, rel_data, obj_data, cfg, rel2idx, rel_transforms = No
     data_dict['edges_cat'] = edges_cat
     data_dict['rel_trans'] = rel_trans
     data_dict['root_obj_id'] = root_obj_id
-    #modified by elena
-    data_dict['bounding_boxes'] = bounding_boxes 
+    data_dict['bounding_boxes'] = bounding_boxes #the boundingboxes are also stored in the reference coordinate system along with the centers
     data_dict["object_centers"] = centroids
     return data_dict
 
@@ -270,20 +262,9 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
     scans_dir = cfg.data.root_dir
     scans_files_dir = osp.join(scans_dir, 'files')
     all_scan_data = common.load_json(osp.join(scans_files_dir, '3RScan.json'))
-    # get rescans
-    # for scan_data in all_scan_data:
-    #     ref_scan_id = scan_data['reference']
-    #     if ref_scan_id in subscan_ids_generated:
-    #         rescan_ids = [scan['reference'] for scan in scan_data['scans']]
-    #         subRescan_ids_generated += rescan_ids + [ref_scan_id]
-    # subscan_ids_generated = subRescan_ids_generated
+   
 
-    """
-    elenas change
-    """
-
-
-    #scans info 
+    #scans info and access of the scans
     scan_info_file = osp.join(scans_files_dir, '3RScan.json')
     all_scan_data = common.load_json(scan_info_file)
     refscans2scans = {}
@@ -314,11 +295,6 @@ def process_data(cfg, rel2idx, rel_transforms = None, mode = 'orig', split = 'tr
             all_scans_split.append(rescans[0])
 
     
-
-    """
-    elenas change
-    """
-
 
     for subscan_id in tqdm(all_scans_split[:]):
         obj_data = [obj_data for obj_data in obj_json if obj_data['scan'] == subscan_id][0]
@@ -437,11 +413,6 @@ if __name__ == '__main__':
     args, _ = parse_args()
     cfg_file = args.config
     split = args.split
-    
-    # cfg = CN()
-    # cfg.defrost()
-    # cfg.set_new_allowed(True)
-    # cfg.merge_from_file(cfg_file)
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
     random.seed(cfg.seed)

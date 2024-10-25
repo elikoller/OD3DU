@@ -20,6 +20,7 @@ from utils import common, scan3r
 #I don't think I actually need this also adjust the script
 class Scan3ROBJAssociator():
     def __init__(self, cfg, split):
+        #preparation of the used paths and scan infor to be able to access the needed scans
         self.cfg = cfg
         self.split = split
         self.resplit = cfg.data.resplit
@@ -73,9 +74,9 @@ class Scan3ROBJAssociator():
 
 
         self.scan_ids = self.all_scans_split
-        print(len(self.scan_ids))
+  
         
-        # 2D object id annotation
+        # 2D object id annotation directory
         self.obj_2D_anno_dir = osp.join(self.scans_dir, 'files', 'gt_projection', 'obj_id')
         
         # 2D image pObjectEmbeddingGeneratoratch annotation
@@ -105,7 +106,7 @@ class Scan3ROBJAssociator():
         for frame_idx in frame_idxs:
             gt_2D_obj_anno_img = gt_2D_obj_anno_imgs[frame_idx]
             patch_annos = np.zeros((self.image_patch_h, self.image_patch_w), dtype=np.uint8)
-            # iterate over patches within one image
+            # iterate over patches within one image and assign the majority id of the projection to that patch
             for patch_h_i in range(self.image_patch_h):
                 h_start = round(patch_h_i * self.patch_h_size)
                 h_end = round((patch_h_i+1) * self.patch_h_size)
@@ -119,7 +120,7 @@ class Scan3ROBJAssociator():
                     max_count = counts[max_idx]
                     if(max_count > th*patch_size):
                         patch_annos[patch_h_i,patch_w_j] = obj_ids[max_idx]
-            
+            #save the frame of patch annotations
             patch_annos_scan[frame_idx] = patch_annos   
                     
         return patch_annos_scan

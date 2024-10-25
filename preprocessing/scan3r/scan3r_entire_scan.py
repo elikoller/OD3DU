@@ -21,6 +21,7 @@ def parse_args():
 
 class Scan3REntireScanDataset(data.Dataset):
     def __init__(self, cfg, split, rescan):
+        #preparation of the paths used later
         self.split = split
         self.use_predicted = cfg.use_predicted
         self.pc_resolution = cfg.val.pc_res if split == 'val' else cfg.train.pc_res
@@ -136,5 +137,4 @@ if __name__ == '__main__':
     cfg = update_config(config, args.config, ensure_dir=False)
     scan3r_ds = Scan3REntireScanDataset(cfg, split=args.split, rescan=args.rescan)
     print("total {} scenes in {} set".format(len(scan3r_ds), args.split) )
-    # for data_item in scan3r_ds:
-    #     print(data_item['scene_ids'])    
+    
