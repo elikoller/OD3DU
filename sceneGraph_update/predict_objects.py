@@ -108,7 +108,7 @@ class Evaluator():
     
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
-        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Centers")
+        self.out_dir = osp.join(self.scans_files_dir, "Predicted_Centers")
         common.ensure_dir(self.out_dir)
 
      
@@ -166,7 +166,7 @@ class Evaluator():
     #return an object with the structure:scan_id: frame_number: frame_obj_id: matched id
     def read_matching_data(self, scan_id):
         # get the file and iterate through everything to create an object
-        matchfile = osp.join("/media/ekoller/T7/Predicted_Matches", scan_id + ".h5")
+        matchfile = osp.join(self.scans_files_dir,"Predicted_Matches", scan_id + ".h5")
         with h5py.File(matchfile, 'r') as hdf_file:
             loaded_matches = {}
             
@@ -317,7 +317,7 @@ class Evaluator():
        
 
         #access the segmentation of the scan_id
-        segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
+        segmentation_info_path = osp.join(self.scans_files_dir,"Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
         #print("segmentation data keys ", segmentation_data.keys())
         #access the matched data
@@ -353,7 +353,7 @@ class Evaluator():
 
                 new_obj_idx = 0
                 #access the segmented image
-                segmented_img_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
+                segmented_img_path = osp.join(self.scans_files_dir,"Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
                 segmented_img = cv2.imread(segmented_img_path)
                 #print("Segmented image shape:", segmented_img.shape)
                 #iterate through the masks of the objec

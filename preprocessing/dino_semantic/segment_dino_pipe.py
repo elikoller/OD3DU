@@ -101,7 +101,7 @@ class DinoSegmentor():
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
-        for ref_scan in ref_scans_split:
+        for ref_scan in ref_scans_split[229:]:
             #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -134,15 +134,15 @@ class DinoSegmentor():
         
         
         #outputpath for total images
-        self.out_dir_color = '/media/ekoller/T7/Segmentation/DinoV2/color'
+        self.out_dir_color = osp.join(self.scans_files_dir,'Segmentation/DinoV2/color')
         #output path for components
-        self.out_dir_objects = '/media/ekoller/T7/Segmentation/DinoV2/objects'
+        self.out_dir_objects = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects")
 
 
         common.ensure_dir(self.out_dir_color)
         common.ensure_dir(self.out_dir_objects)
         
-    
+        self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
 
 
 
@@ -301,7 +301,8 @@ class DinoSegmentor():
                 # Calculate patch dimensions
                 patch_width = img_width // self.image_patch_w
                 patch_height = img_height // self.image_patch_h
-               # Process each patch
+                #since the ref scene is also given on patch basis - speed up the neighbouhod by bringing it from pixel level to patch level
+                # Process each patch
                 for h in range(0, img_height, patch_height):
                     for w in range(0, img_width, patch_width):
                         # Extract the patch
@@ -379,7 +380,7 @@ class DinoSegmentor():
                     bbox_group.create_dataset('bbox', data=np.array(bbox['bbox']))
                     
                     # Store mask as a dataset (assuming component_mask is a numpy array)
-                    bbox_group.create_dataset('mask', data=bbox['mask'], compression='gzip')
+                    bbox_group.create_dataset('mask', data=bbox['mask'])
         
 
 
@@ -400,6 +401,7 @@ class DinoSegmentor():
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')
+    parser.add_argument('--split', type=str, default='train', help='Seed for random number generator')
     return parser.parse_known_args()
 
 def main():
@@ -407,16 +409,16 @@ def main():
     # get arguments
     args, _ = parse_args()
     cfg_file = args.config
+    split = args.split
     print(f"Configuration file path: {cfg_file}")
 
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
-    #do it for the projections first
-   
-    scan3r_segmentor = DinoSegmentor(cfg, 'train')
+ 
+    scan3r_segmentor = DinoSegmentor(cfg, split)
     scan3r_segmentor.segmentation()
-  
+   
     
 if __name__ == "__main__":
     main()

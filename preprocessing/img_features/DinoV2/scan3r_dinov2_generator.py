@@ -166,14 +166,14 @@ class Scan3rDinov2Generator():
         
         # ## out dir 
         if(self.proj):
-            self.out_dir_avg = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
-            self.out_dir_max = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
-            self.out_dir_median = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
+            self.out_dir_avg = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
+            self.out_dir_max = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
+            self.out_dir_median = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
 
         if(self.dino):
-            self.out_dir_avg = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
-            self.out_dir_max = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
-            self.out_dir_median = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
+            self.out_dir_avg = osp.join(self.scans_files_dir,"Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
+            self.out_dir_max = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
+            self.out_dir_median = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
 
         common.ensure_dir(self.out_dir_avg)
         common.ensure_dir(self.out_dir_max)
@@ -225,7 +225,7 @@ class Scan3rDinov2Generator():
         # return object_boxes
 
         #load data from the h5 file
-        file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.h5".format(scan_id))
+        file_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects","{}.h5".format(scan_id))
         with h5py.File(file_path, 'r') as hdf_file:
             if str(frame_number) in hdf_file:
                 object_boxes = []

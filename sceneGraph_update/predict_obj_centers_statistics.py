@@ -108,10 +108,10 @@ class Evaluator():
         else:
             self.scan_ids = ref_scans_split
     
-        print("now correctly computed mean")
+        
         #output path for components
         #self.out_dir = osp.join(self.data_root_dir, "Updates","depth_img")
-        self.out_dir = osp.join("/media/ekoller/T7/Center_statistics/")
+        self.out_dir = osp.join(self.data_root_dir, "Resuls", "Center_Prediction_" + self.split)
         common.ensure_dir(self.out_dir)
 
      
@@ -169,7 +169,7 @@ class Evaluator():
     #return an object with the structure:scan_id: frame_number: frame_obj_id: matched id
     def read_matching_data(self, scan_id):
         # get the file and iterate through everything to create an object
-        matchfile = osp.join("/media/ekoller/T7/Predicted_Matches", scan_id + ".h5")
+        matchfile = osp.join( self.scans_files_dir, "Predicted_Matches", scan_id + ".h5")
         with h5py.File(matchfile, 'r') as hdf_file:
             loaded_matches = {}
             
@@ -364,7 +364,7 @@ class Evaluator():
        
         
         #access the segmentation of the scan_id
-        segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
+        segmentation_info_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
         #access the matched data
@@ -400,7 +400,7 @@ class Evaluator():
 
                 new_obj_idx = 0
                 #access the segmented image
-                segmented_img_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
+                segmented_img_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/color", scan_id, "frame-{}.jpg".format(frame_idx))
                 segmented_img = cv2.imread(segmented_img_path)
                 #print("Segmented image shape:", segmented_img.shape)
                 #iterate through the masks of the objec
@@ -644,7 +644,7 @@ class Evaluator():
 
     def read_predicted_data(self, scan_id):
         all_centers = {}
-        filename = osp.join("/media/ekoller/T7/Predicted_Centers", scan_id + ".h5")
+        filename = osp.join(self.scans_files_dir, "Predicted_Centers", scan_id + ".h5")
         with h5py.File(filename, 'r') as h5file:
             for obj_id in h5file.keys():
                 obj_group = h5file[obj_id]
@@ -972,7 +972,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir, str(obverlap_threshold))
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "test_ref_obj_statistics_test.pkl")
+        result_file_path = osp.join(result_dir,  "statistics_predicted_centers.pkl")
         common.write_pkl_data(result, result_file_path)
             
     

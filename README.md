@@ -168,25 +168,25 @@ This will create patch-level features for query images and save in "{Data_ROOT_D
 ### Computation of best parameters "Training
 To generate the tables with the accuracies, use : 
 ```bash
-bash scripts/matching/computation.sh
+bash scripts/segment_to_object_matching/computation.sh
 ```
 
 ### predict the feature matches
 To generates the feature matches for the semantig segments : 
 ```bash
-bash scripts/matching/obj_matches.sh
+bash scripts/segment_to_object_matching/obj_matches.sh
 ```
 
 ### Predict objects
 
 ```bash
-bash scripts/predicted_objects/predict_objects.sh
+bash scripts/3D_center_prediction/predict_objects.sh
 ```
 
 ## to evaluate and get a statistical perspective ot the predicted object centers
 
 ```bash
-bash scripts/predicted_objects/predict_objects_statistics.sh
+bash scripts/3D_center_prediction/predict_objects_statistics.sh
 ```
 
 

@@ -121,7 +121,7 @@ class Evaluator():
     
         #output path for components
         #self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
-        self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
+        self.out_dir = osp.join( self.scans_files_dir, "Predicted_Matches")
         common.ensure_dir(self.out_dir)
 
      
@@ -337,7 +337,7 @@ class Evaluator():
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
         reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
-        reference_info_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(reference_id))
+        reference_info_path = osp.join( self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(reference_id))
         ref_data = self.read_ref_data(reference_info_path)
         
         
@@ -367,7 +367,7 @@ class Evaluator():
         all_matches = {}
 
         #access the scan feature info to iterate over it later
-        scan_info_path = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(scan_id))
+        scan_info_path = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode, "{}.h5".format(scan_id))
         scan_data = self.read_scan_data(scan_info_path)
 
         #now the frame

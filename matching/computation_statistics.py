@@ -122,7 +122,7 @@ class Evaluator():
 
     
         #output path for components
-        self.out_dir = "/media/ekoller/T7/Results" #osp.join("/media/ekoller/T7", "Results")
+        self.out_dir = osp.join(self.scans_files_dir, "Results", "Matching_Prediction_" + self.split)
         print(self.out_dir)
         common.ensure_dir(self.out_dir)
 
@@ -465,7 +465,7 @@ class Evaluator():
 
     def read_matching_data(self,scan_id):
         # get the file and iterate through everything to create an object
-        matchfile = osp.join("/media/ekoller/T7/Predicted_Matches", scan_id + ".h5")
+        matchfile = osp.join(self.scans_files_dir, "Predicted_Matches", scan_id + ".h5")
         with h5py.File(matchfile, 'r') as hdf_file:
             loaded_matches = {}
             
@@ -499,7 +499,7 @@ class Evaluator():
     
 
         #access the segmentation of the scan_id
-        segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
+        segmentation_info_path = osp.join( self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
         #access the matched ids
@@ -684,7 +684,7 @@ class Evaluator():
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
         reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
-        reference_info_path = osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(reference_id))
+        reference_info_path = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(reference_id))
         ref_data = self.read_ref_data(reference_info_path)
         
     
@@ -712,12 +712,12 @@ class Evaluator():
 
 
         #access the scan feature info to iterate over it later
-        scan_info_path = osp.join("/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(scan_id))
+        scan_info_path = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(scan_id))
         scan_data = self.read_scan_data(scan_info_path)
 
 
         #access the segmentation of the scan_id
-        segmentation_info_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects", scan_id + ".h5")
+        segmentation_info_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = self.read_segmentation_data(segmentation_info_path)
 
 
@@ -984,7 +984,7 @@ class Evaluator():
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
-        result_file_path = osp.join(result_dir,  "final_test_statistics.pkl")
+        result_file_path = osp.join(result_dir,  "statistic_predicted_matches.pkl")
         common.write_pkl_data(result, result_file_path)
                     
                 
