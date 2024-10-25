@@ -9,17 +9,17 @@ data :
     w: 960
     h: 540
   img_encoding:
-    patch_w: 32 # number of patchs in width
-    patch_h: 18
+    patch_w: 32 # number of patechs in width
+    patch_h: 18 #number of patches in height
   inference_step: 100
 
 model:
   name: DinoV2
 
 parameters:
-    voxel_size_overlap: 0.2 #for faster computation
+    voxel_size_overlap: 0.2 #the voxel size used when downsampling for voxel IoU
     minimum_votes: [1,2,3,4,5,6]
     minimum_points: [5,10,15,20,25,30,35,40,45,50,55,60] 
-    overlap_th: [0.1,0.3,0.5]
-    box_scale: 1
+    overlap_th: [0.1,0.3,0.5] #voxel IoU threshold
+    box_scale: 1 #scale of the gt_box forthe evaluation
            

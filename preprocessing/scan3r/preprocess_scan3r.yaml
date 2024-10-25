@@ -16,7 +16,7 @@ data :
   rescan: True
 
 preprocess :
-  pc_resolutions      : [64, 128, 256, 512]
+  pc_resolutions      : [64, 128, 256, 512] #resolutions of the pointclouds of the graph
   subscenes_per_scene : 7
   filter_segment_size : 512
   min_obj_points      : 50

@@ -17,8 +17,8 @@ model:
   name: DinoV2
 
 parameters: 
-    voxel_size: 0.2
+    voxel_size: 0.2 #the voxel size used when downsampling for voxel IoU
     minimum_points: 45
     minimum_votes: 3
-    overlap_threshold: 0.1
+    overlap_threshold: 0.1 #voxel IoU threshold
   

@@ -57,12 +57,14 @@ These features are only computed to see how close they are to the scenegraph fea
 """
 class Scan3rDinov2Generator():
     def __init__(self, cfg, split, for_proj = False, for_dino_seg = False):
-
+        #get the paths and the necessary info to access the model and the data
         self.cfg = cfg
         torch.cuda.empty_cache()
         #to know how to change the directory name based on the input images
-        self.proj = for_proj
-        self.dino = for_dino_seg
+        self.proj = for_proj #reference scene graph work
+        self.dino = for_dino_seg #rescan RGB sequence work
+        #mode of dimensionality reduciton of the feature vectors
+        self.mode = cfg.parameters.mode
         # 3RScan data info
         ## sgaliner related cfg
         self.split = split
@@ -75,8 +77,6 @@ class Scan3rDinov2Generator():
         scan_dirname = osp.join(scan_dirname, 'predicted') if self.use_predicted else scan_dirname
         self.scans_dir = osp.join(cfg.data.root_dir, scan_dirname)
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
-        # self.mode = 'orig' if self.split == 'train' else cfg.sgaligner.val.data_mode
-        # self.scans_files_dir_mode = osp.join(self.scans_files_dir, self.mode)
         self.scans_files_dir_mode = osp.join(self.scans_files_dir)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
@@ -99,10 +99,7 @@ class Scan3rDinov2Generator():
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
         print("ref scan split", len(ref_scans_split))
         self.all_scans_split = []
-        ## get all scans within the split(ref_scan + rescan)
-        
-
-
+    
 
         for ref_scan in ref_scans_split:
             #self.all_scans_split.append(ref_scan)
@@ -113,23 +110,14 @@ class Scan3rDinov2Generator():
                 self.all_scans_split.append(rescans[0])
 
         
-    
-        """
-        differenciate between the dinofeatures for the current scene (for_poj = True) and the ones for the rescans (for_dino_seg= True)
-        """
-
-    
+        #the self.proj indicates that the computations are for the boundingboxes of the reference scene graph since we find them in the projection
 
         if self.proj:
             self.scan_ids = ref_scans_split #only take the reference scans
-        
+        #here we need only the rescans since we use the predicted masks for the feature generation
         if self.dino:
             self.scan_ids = self.all_scans_split
-            #self.scan_ids = [scan for scan in self.all_scans_split if scan not in ref_scans_split]#only take the rescans
-            
-        print("self scans", len(self.scan_ids))
-
-        #print("scan ids", len(self.scan_ids))
+          
         ## images info
         self.image_paths = {}
         for scan_id in self.scan_ids:
@@ -164,31 +152,20 @@ class Scan3rDinov2Generator():
         self.image_patch_h = self.cfg.data.img_encoding.patch_h
         self.step = self.cfg.data.img.img_step
         
-        # ## out dir 
+        # out dir of the matches. there can be different modes which can be chosen in the config file this code supports avg, median and max and makes individual forlders
         if(self.proj):
-            self.out_dir_avg = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
-            self.out_dir_max = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
-            self.out_dir_median = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
-
+            self.out_dir_mode = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode)
+            
         if(self.dino):
-            self.out_dir_avg = osp.join(self.scans_files_dir,"Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg")
-            self.out_dir_max = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max")
-            self.out_dir_median = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median")
-
-        common.ensure_dir(self.out_dir_avg)
-        common.ensure_dir(self.out_dir_max)
-        common.ensure_dir(self.out_dir_median)
-        # if(self.proj):
-        #     for done_scan in ref_scans_split:   
-        #         path_avg = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "avg", done_scan + ".h5"))
-        #         path_max = Path(osp.join("/media/ekoller/T7/Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "max",  done_scan + ".h5"))
-        #         path_median= Path(osp.join("/media/ekoller/T7/Features2D/projection""/media/ekoller/T7/Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), "median",  done_scan + ".h5"))
-        #         if (path_avg.is_file()) and ( path_max.is_file()) and (path_median.is_file()):
-        #             ref_scans_split.remove(done_scan)
+            self.out_dir_mode = osp.join(self.scans_files_dir,"Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), self.mode)
+            
+        common.ensure_dir(self.out_dir_mode)
+      
+        
                     
         
     def register_model(self):
-        
+        #register the used model and prepare cuda
         desc_layer = 31
         desc_facet = "value"
         device = torch.device("cuda")
@@ -208,6 +185,7 @@ class Scan3rDinov2Generator():
         ])
         
     def inference(self, imgs_tensor):
+        #prepare the inference
         feature = self.model.backbone(imgs_tensor)[-1]
         return feature
     
@@ -216,14 +194,6 @@ class Scan3rDinov2Generator():
     #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
     def bounging_boxes_for_dino_segmentation(self, data_dir,scan_id, frame_number):
         #access the precomputed boundingboxes
-        # Load data from the pickle file
-        # file_path = osp.join("/media/ekoller/T7/Segmentation/DinoV2/objects","{}.pkl".format(scan_id))
-        # with open(file_path, 'rb') as file:
-        #     object_info = pickle.load(file)
-
-        # object_boxes = object_info[frame_number]
-        # return object_boxes
-
         #load data from the h5 file
         file_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects","{}.h5".format(scan_id))
         with h5py.File(file_path, 'r') as hdf_file:
@@ -302,13 +272,8 @@ class Scan3rDinov2Generator():
         
     def generateFeaturesEachScan(self, scan_id):
         # Initialize a dictionary to store features per frame and object ID
-        features_avg = {}
-        features_max = {}
-        features_median = {}
-        
-        
-    
-
+        features_mode = {}
+   
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
         frame_idxs_list = list(img_paths.keys())
@@ -319,7 +284,7 @@ class Scan3rDinov2Generator():
             end_idx = min((infer_step_i + 1) * self.inference_step, len(frame_idxs_list))
             frame_idxs_sublist = frame_idxs_list[start_idx:end_idx]
 
-
+            #iterate over evrey frame
             for frame_idx in frame_idxs_sublist:
                 img_path = img_paths[frame_idx]
                 img = Image.open(img_path).convert('RGB')
@@ -328,16 +293,14 @@ class Scan3rDinov2Generator():
                 #do the things for the dino part
                 if self.dino:
                     """
-                    the final structure will be dict: frame_idx: object_id: the feature itself
+                    the final structure will be dict: frame_idx: object_id: the final feature itself
                     """
                     #get the boundingboxes for the seggmentation with dino data
                     bboxes = self.bounging_boxes_for_dino_segmentation(dat_dir,scan_id, frame_idx)
 
                     # Initialize dictionary for embeddings per object ID in the current frame
-                    features_avg[frame_idx] = {}
-                    features_max[frame_idx] = {}
-                    features_median[frame_idx] = {}
-
+                    features_mode[frame_idx] = {}
+               
                     for bbox in bboxes:
                         object_id = bbox["object_id"]
 
@@ -365,15 +328,22 @@ class Scan3rDinov2Generator():
 
                         # Store the embedding in the dictionary under the object ID
                         result = ret[0].cpu().numpy()
-                        features_avg[frame_idx][object_id] = np.mean(result, axis=0)  # [1, desc_dim]
-                        features_max[frame_idx][object_id] = np.max(result, axis=0)   # [1, desc_dim]
-                        features_median[frame_idx][object_id] = np.median(result, axis=0)  # [1, desc_dim]
 
+                        if self.mode == "avg":
+                            features_mode[frame_idx][object_id] = np.mean(result, axis=0)  # [1, desc_dim]
+
+                        if self.mode =="median":
+                            features_mode[frame_idx][object_id] = np.median(result, axis=0)  # [1, desc_dim]
+
+                        if self.mode == "max":
+                            features_mode[frame_idx][object_id] = np.max(result, axis=0)  # [1, desc_dim]
+
+                    
                     
 
                 if self.proj:
                     """
-                    the final structure will be dict:object_id: list of all the features corresponding to it
+                    the final structure will be dict:object_id: list of all the features corresponding to the object id (across all frames)
                     """
                     #get the boundingboxes for the seggmentation with dino data
                     bboxes = self.bounding_boxes_for_projection(dat_dir,scan_id, frame_idx)
@@ -405,45 +375,46 @@ class Scan3rDinov2Generator():
                             ret = self.extractor(imgs_tensor)  # [1, num_patches, desc_dim]
                         
                         result = ret[0].cpu().numpy() #[num_patches, desc_dim]
-                        result_avg = np.mean(result, axis=0)  # [1, desc_dim]
-                        result_max = np.max(result, axis=0)   # [1, desc_dim]
-                        result_median = np.median(result, axis=0)  # [1, desc_dim]
+
+                        if self.mode == "avg":
+                            result_mode = np.mean(result, axis=0)  # [1, desc_dim]
+
+                        if self.mode == "median":
+                            result_mode = np.median(result, axis=0)  # [1, desc_dim]
+
+                        if self.mode == "max":
+                            result_mode = np.max(result, axis=0)  # [1, desc_dim]
+
+                    
                         #check if the id is already here
-                        if object_id not in features_avg:
-                            features_avg[object_id] = []
-                            features_max[object_id] = []
-                            features_median[object_id] = []
+                        if object_id not in features_mode:
+                            features_mode[object_id] = []
+                           
                         # Store the embedding in the dictionary under the object ID
                         #store the feature at the correct feature id
-                        features_avg[object_id].append(result_avg)
-                        features_max[object_id].append(result_max)
-                        features_median[object_id].append(result_median)
+                        features_mode[object_id].append(result_mode)
+                      
 
         
-        return features_avg, features_max, features_median
+        return features_mode 
 
     
     
     def generateFeatures(self):
-        img_num = 0
+       
         self.feature_generation_time = 0.0
         print("scanid in generate function", len(self.scan_ids))
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
-                features_avg, features_max, features_median = self.generateFeaturesEachScan(scan_id)
-            img_num += len(features_avg)
-            # out_file = osp.join(self.out_dir, '{}.pkl'.format(scan_id))
-            # common.write_pkl_data(imgs_features, out_file)
-
-            out_file_avg = osp.join(self.out_dir_avg, '{}.h5'.format(scan_id))
-            out_file_max = osp.join(self.out_dir_max, '{}.h5'.format(scan_id))
-            out_file_median = osp.join(self.out_dir_median, '{}.h5'.format(scan_id))
-            
-            #save for dino
+                features_mode = self.generateFeaturesEachScan(scan_id)
+        
+        
+            out_file_mode = osp.join(self.out_dir_mode, '{}.h5'.format(scan_id))
+         
+            #save for the rescan since it has a different structure
             if self.dino:
-                #save the average file
-                with h5py.File(out_file_avg, 'w') as hdf_file:
-                    for frame_idx, objects in features_avg.items():
+                with h5py.File(out_file_mode, 'w') as hdf_file:
+                    for frame_idx, objects in features_mode.items():
                         # Create a group for each frame_idx
                         frame_group = hdf_file.create_group(str(frame_idx))
                         
@@ -454,85 +425,35 @@ class Scan3rDinov2Generator():
                             # Save the feature vector as a dataset within the frame group
                             frame_group.create_dataset(object_key, data=feature_vector, compression="gzip")
 
-                #save the max file
-                with h5py.File(out_file_max, 'w') as hdf_file:
-                    for frame_idx, objects in features_max.items():
-                        # Create a group for each frame_idx
-                        frame_group = hdf_file.create_group(str(frame_idx))
+            #how to access it
+            # with h5py.File(out_file, 'r') as hdf_file:
+            #     # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
+            #     for frame_idx in hdf_file.keys():
+            #         # Initialize a dictionary for each frame_idx
+            #         features[int(frame_idx)] = {}
+                    
+            #         # Access the group corresponding to the current frame_idx
+            #         frame_group = hdf_file[frame_idx]
+                    
+            #         # Iterate over each object_id within the current frame_idx group
+            #         for object_key in frame_group.keys():
+            #             # Convert object_key back to object_id if necessary
+            #             object_id = int(object_key)
                         
-                        for object_id, feature_vector in objects.items():
-                            # Convert object_id to string to use as a key
-                            object_key = str(object_id)
-                            
-                            # Save the feature vector as a dataset within the frame group
-                            frame_group.create_dataset(object_key, data=feature_vector, compression="gzip")
-
-                #save the median file
-                with h5py.File(out_file_median, 'w') as hdf_file:
-                    for frame_idx, objects in features_median.items():
-                        # Create a group for each frame_idx
-                        frame_group = hdf_file.create_group(str(frame_idx))
+            #             # Retrieve the feature vector from the dataset
+            #             feature_vector = frame_group[object_key][:]
                         
-                        for object_id, feature_vector in objects.items():
-                            # Convert object_id to string to use as a key
-                            object_key = str(object_id)
-                            
-                            # Save the feature vector as a dataset within the frame group
-                            frame_group.create_dataset(object_key, data=feature_vector, compression="gzip")
-                            # #read it into the normal structure
-                            # with h5py.File(out_file, 'r') as hdf_file:
-                            #     # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
-                            #     for frame_idx in hdf_file.keys():
-                            #         # Initialize a dictionary for each frame_idx
-                            #         features[int(frame_idx)] = {}
-                                    
-                            #         # Access the group corresponding to the current frame_idx
-                            #         frame_group = hdf_file[frame_idx]
-                                    
-                            #         # Iterate over each object_id within the current frame_idx group
-                            #         for object_key in frame_group.keys():
-                            #             # Convert object_key back to object_id if necessary
-                            #             object_id = int(object_key)
-                                        
-                            #             # Retrieve the feature vector from the dataset
-                            #             feature_vector = frame_group[object_key][:]
-                                        
-                            #             # Store the feature vector in the dictionary under the object_id
-                            #             features[int(frame_idx)][object_id] = feature_vector
+            #             # Store the feature vector in the dictionary under the object_id
+            #             features[int(frame_idx)][object_id] = feature_vector
 
-                            # # Now, you can access features[frame_idx][object_id] to get the feature vector
+            # # Now, you can access features[frame_idx][object_id] to get the feature vector
 
 
 
-
+            #save for the reference scan which has a different structure
             if self.proj:
-                #save the average
-                with h5py.File(out_file_avg, 'w') as hdf_file:
-                    for object_id, feature_list in features_avg.items():
-                        # Convert object_id to string to use as a key (if necessary)
-                        object_key = str(object_id)
-
-                        # Stack the list of feature vectors into a numpy array for storage
-                        stacked_features = np.stack(feature_list, axis=0)
-
-                        # Save the stacked features as a dataset within the HDF5 file
-                        hdf_file.create_dataset(object_key, data=stacked_features, compression="gzip")
-
-                #save the average
-                with h5py.File(out_file_max, 'w') as hdf_file:
-                    for object_id, feature_list in features_max.items():
-                        # Convert object_id to string to use as a key (if necessary)
-                        object_key = str(object_id)
-
-                        # Stack the list of feature vectors into a numpy array for storage
-                        stacked_features = np.stack(feature_list, axis=0)
-
-                        # Save the stacked features as a dataset within the HDF5 file
-                        hdf_file.create_dataset(object_key, data=stacked_features, compression="gzip")
-
-                #save the average
-                with h5py.File(out_file_median, 'w') as hdf_file:
-                    for object_id, feature_list in features_median.items():
+                with h5py.File(out_file_mode, 'w') as hdf_file:
+                    for object_id, feature_list in features_mode.items():
                         # Convert object_id to string to use as a key (if necessary)
                         object_key = str(object_id)
 
@@ -543,31 +464,26 @@ class Scan3rDinov2Generator():
                         hdf_file.create_dataset(object_key, data=stacked_features, compression="gzip")
 
 
-                        #how to access it 
-                        # features = {}
+            #how to access it 
+            # features = {}
 
-                        # # Open the HDF5 file for reading
-                        # with h5py.File(out_file, 'r') as hdf_file:
-                        #     # Iterate over each object ID (which corresponds to the dataset keys)
-                        #     for object_key in hdf_file.keys():
-                        #         # Read the dataset corresponding to the object_key
-                        #         stacked_features = hdf_file[object_key][:]
-                                
-                        #         # Convert the string key back to the original object_id if necessary
-                        #         object_id = int(object_key)
-                                
-                        #         # Store the feature list in the dictionary
-                        #         features[object_id] = [stacked_features[i] for i in range(stacked_features.shape[0])]
+            # # Open the HDF5 file for reading
+            # with h5py.File(out_file, 'r') as hdf_file:
+            #     # Iterate over each object ID (which corresponds to the dataset keys)
+            #     for object_key in hdf_file.keys():
+            #         # Read the dataset corresponding to the object_key
+            #         stacked_features = hdf_file[object_key][:]
+                    
+            #         # Convert the string key back to the original object_id if necessary
+            #         object_id = int(object_key)
+                    
+            #         # Store the feature list in the dictionary
+            #         features[object_id] = [stacked_features[i] for i in range(stacked_features.shape[0])]
 
-                        # # Now, you can access features[obj_id] as a list of feature vectors
+            # # Now, you can access features[obj_id] as a list of feature vectors corresponding to the object
 
 
-            
-        # log
-        # log_str = "Feature generation time: {:.3f}s for {} images, {:.3f}s per image\n".format(
-        #     self.feature_generation_time, img_num, self.feature_generation_time / img_num)
-        # with open(self.log_file, 'a') as f:
-        #     f.write(log_str)
+         
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
@@ -593,7 +509,7 @@ def main():
 
     #also generate for the dino_:segmentation boundingboxes
     scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, split, for_dino_seg = True)
-    #scan3r_gcvit_generator.register_model()
+    #scan3r_gcvit_generator.register_model() #we use the same model again
     scan3r_gcvit_generator.generateFeatures()
 
    

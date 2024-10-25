@@ -36,12 +36,10 @@ print(ws_dir)
 sys.path.append(ws_dir)
 from utils import common, scan3r
 
-"""
-this currently takes only one rescan per reference scene into consideration
-"""
 
 class Evaluator():
     def __init__(self, cfg, split):
+        #initialize the file paths for later access
         self.cfg = cfg
         # 3RScan data info
         self.split = split
@@ -92,12 +90,12 @@ class Evaluator():
         #take only the split file      
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #print("ref scan split", ref_scans_split)
+        
         self.all_scans_split = []
 
         ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split[:]:
-            #self.all_scans_split.append(ref_scan)
+           
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
             if rescans:
@@ -108,19 +106,13 @@ class Evaluator():
         self.all_scans_split.sort()
 
         if self.rescan:
-            self.scan_ids = self.all_scans_split 
+            self.scan_ids = self.all_scans_split #ouses only the rescan -> we only want to match these ones to the reference scan
         else:
             self.scan_ids = ref_scans_split
 
 
-        #print("scan_id_length", len(self.scan_ids))
-
-
-
-
     
         #output path for components
-        #self.out_dir = osp.join("/media/ekoller/T7/Predicted_Matches")
         self.out_dir = osp.join( self.scans_files_dir, "Predicted_Matches")
         common.ensure_dir(self.out_dir)
 
@@ -524,8 +516,6 @@ def main():
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
-    #do it for the projections first
-    print("start computation for test set")
     evaluate = Evaluator(cfg, split)
     evaluate.compute()
    

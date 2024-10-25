@@ -14,9 +14,11 @@ data :
     resize_h:  224 #126 in the features 3d it is also 224 but changed by elena
     img_rotate: True # rotate w,h for backbone GCVit
     patch_w: 32 # number of patchs in width
-    patch_h: 18
+    patch_h: 18 #number of patches in height
   inference_step: 100
 
+parameters:
+  mode: "avg"
 model:
   name: DinoV2
   version: "VitL/14"
@@ -26,8 +28,8 @@ model:
     use_pretrained: True
     cfg_file: "./src/models/GCVit/configs/gcvit/cascade_mask_rcnn_gcvit_tiny_3x_coco.py"
     pretrained: "./checkpoint/GCVit/gcvit_1k_tiny.pth.tar"
-    num_reduce: 1 # should be log2(resize_w/(32*patch_w))
-    backbone_dim: 512 # fixed
+    num_reduce: 1 
+    backbone_dim: 512 
   # patch feature encoder
   patch:
     hidden_dims: [512, 512, 512] # last is the out dim

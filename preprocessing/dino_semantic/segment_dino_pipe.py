@@ -52,6 +52,7 @@ print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 
 class DinoSegmentor():
     def __init__(self, cfg, split):
+        #get the paths needed to access the data and prepare the filepaths
         self.cfg = cfg
         #model info
         self.config_path = cfg.model.config_url
@@ -67,8 +68,6 @@ class DinoSegmentor():
         scan_dirname = osp.join(scan_dirname, 'predicted') if self.use_predicted else scan_dirname
         self.scans_dir = osp.join(cfg.data.root_dir, scan_dirname)
         self.scans_files_dir = osp.join(self.scans_dir, 'files')
-        # self.mode = 'orig' if self.split == 'train' else cfg.sgaligner.val.data_mode
-        # self.scans_files_dir_mode = osp.join(self.scans_files_dir, self.mode)
         self.scans_files_dir_mode = osp.join(self.scans_files_dir)
         self.scans_scenes_dir = osp.join(self.scans_dir, 'scenes')
         self.inference_step = cfg.data.inference_step
@@ -106,24 +105,17 @@ class DinoSegmentor():
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
             if rescans:
-                # Add the first rescan (or any specific rescan logic)
+                # Add the first rescan
                 self.all_scans_split.append(rescans[0])
 
-         
-
+        #choos the scans
         if self.rescan:
-            self.scan_ids = self.all_scans_split
+            self.scan_ids = self.all_scans_split #we only use the rescans so the unseen rbg sequence
         else:
             self.scan_ids = ref_scans_split
 
 
-        print("scan_id_length", len(self.scan_ids))
-
-
-
-
-        #print("scan ids", len(self.scan_ids))
-        ## images info
+        # images info
         self.image_paths = {}
         for scan_id in self.scan_ids:
             self.image_paths[scan_id] = self.load_frame_paths(self.scans_dir, scan_id)
@@ -142,9 +134,6 @@ class DinoSegmentor():
         common.ensure_dir(self.out_dir_color)
         common.ensure_dir(self.out_dir_objects)
         
-        self.log_file = osp.join(cfg.data.log_dir, "log_file_{}.txt".format(self.split))
-
-
 
     #helper functions
     #loads configs from the urs
@@ -153,10 +142,12 @@ class DinoSegmentor():
             return f.read().decode()
         
     """
-    Code cuplication with utils scan3r, Reason: the environment of this model is very lets say particular :) 
+    Code Duplication: this file is run in a docker environment where the dependencies dont align with the ones used in the rest of the project
+    hence we dublicate some code from the utils section
     """
 
     
+    #this returns the image patshs for every frame_id
     def load_frame_paths(self,data_dir, scan_id, skip=None):
         frame_idxs = self.load_frame_idxs(osp.join(data_dir, "scenes"), scan_id, skip)
         img_folder = osp.join(data_dir, "scenes", scan_id, 'sequence')
@@ -167,15 +158,9 @@ class DinoSegmentor():
             img_paths[frame_idx] = img_path
         return img_paths
     
-    def load_frame_idxs(self,data_dir, scan_id, skip=None):
-        # num_frames = len(glob(osp.join(data_dir, scan_id, 'sequence', '*.jpg')))
 
-        # if skip is None:
-        #     frame_idxs = ['{:06d}'.format(frame_idx) for frame_idx in range(0, num_frames)]
-        # else:
-        #     frame_idxs = ['{:06d}'.format(frame_idx) for frame_idx in range(0, num_frames, skip)]
-        # return frame_idxs
-        
+    #return the frame idxs 
+    def load_frame_idxs(self,data_dir, scan_id, skip=None):
         frames_paths = glob(osp.join(data_dir, scan_id, 'sequence', '*.jpg'))
         frame_names = [osp.basename(frame_path) for frame_path in frames_paths]
         frame_idxs = [frame_name.split('.')[0].split('-')[-1] for frame_name in frame_names]
@@ -190,7 +175,7 @@ class DinoSegmentor():
 
 
 
-    #this function helps to render the segmented image such that we get the different colours  
+    #this function helps to render the segmented image such that we get the different colours 
     def render_segmentation(self,segmentation_logits, dataset):
         DATASET_COLORMAPS = {
         "ade20k": colormaps.ADE20K_COLORMAP,
@@ -203,10 +188,6 @@ class DinoSegmentor():
     
     #load the model
     def load_pretrained_model(self):
-    
-        # DINOV2_BASE_URL = "https://dl.fbaipublicfiles.com/dinov2"
-        # CONFIG_URL = f"{DINOV2_BASE_URL}/dinov2_vitg14/dinov2_vitg14_ade20k_m2f_config.py"
-        # CHECKPOINT_URL = f"{DINOV2_BASE_URL}/dinov2_vitg14/dinov2_vitg14_ade20k_m2f.pth"
 
         cfg_str = self.load_config_from_url(self.config_path)
         cfg = mmcv.Config.fromstring(cfg_str, file_format=".py")
@@ -223,7 +204,7 @@ class DinoSegmentor():
         
 
     
-    #for a scan do the inference for every frame // saves the entire image and a dictionary with the patches, ids, and boundingboxes
+    #for a scan do the inference for every frame // saves the entire image and a dictionary with the patches (quantized instance mask), ids, and boundingboxes
     def segment_each_scan(self, model, scan_id):
         # Load image paths and frame indices
         img_paths = self.image_paths[scan_id]
@@ -260,36 +241,29 @@ class DinoSegmentor():
                     img = img.transpose(Image.ROTATE_270)
 
                 #make an np array
-                #device = torch.device('cuda')
-                #img_tensor = torch.from_numpy(np.array(img)).to(device)
                 array = np.array(img)
 
 
-                #print("--- image got loaded ---")
-                #less momry
+                #less memory
                 torch.cuda.empty_cache()
                 with torch.no_grad():
                     segmentation_logits = inference_segmentor(model, array)[0]
 
-                #print("--- image gets rendered ----")
+                #render the inferred image
                 segmented_img = self.render_segmentation(segmentation_logits, "ade20k")
                 segmented_img = np.array(segmented_img)
                 #rotate the image such that the dimensions align with the other dimensions
                 segmented_img = cv2.rotate(segmented_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                #to do assert the folder
-                #cv2.imwrite("/local/home/ekoller/tmp_result/segmentedimg_r3_rotated.jpg", segmented_image_np)
-                #print("--- image got saved ---")
+               
                 
                 #safe the image as a colourful mask 
                 img_name = "frame-"+str(frame_idx)+".jpg"
                 file_path = osp.join(scan_result_path_color,img_name)
                 cv2.imwrite(file_path,segmented_img)
 
-                #also create a dictionary for the  by creating a object_based view 
-                 #accesses the bounding boxes of the segmentation computed by dino and saved in the same format as the ones for the projection will be calculated
-    
                 """
-                create objects based on components and save the infor in a dict
+                create objects based on components and save the infor in a dict: we dont want the masks on class level but instead on instance level
+                we use connected components to get the individual instances
                 """
                 
                 #from the just computed segmentation get the shape
@@ -320,13 +294,13 @@ class DinoSegmentor():
                         patch_annos[h:h+patch_height, w:w+patch_width] = most_common_value
                         
 
-                 #create the dictionary we will retun later analogously to the projection boundingboxes
+                #create the dictionary we will retun later analogously to the projection boundingboxes
                 #compute the boundingboxes based on that new obj_id_mask
                 bounding_boxes = []
                 segment_id = 0
 
 
-                #look how many colours there are in the img
+                #look how many colours there are in the img and make the components withing one colour e.g. 2 blue chairs in an image is one blue mask -> after we have 2 separate masks
                 unique_colors = np.unique(patch_annos.reshape(-1, 3), axis=0)
                 for color in unique_colors:
                     # get the mask per colour
@@ -353,16 +327,13 @@ class DinoSegmentor():
 
                 
                 info[frame_idx]= bounding_boxes
-                print("frame ", frame_idx, " is done")
+               
 
                
               
             
-        #save the info 
+ 
         # save file
-
-        # objects_file = osp.join(self.out_dir_objects, scan_id+".pkl")
-        # common.write_pkl_data(info, objects_file)
         objects_file = osp.join(self.out_dir_objects, scan_id+".h5")
         with h5py.File(objects_file, 'w') as hdf_file:
             for frame_idx, bboxes in info.items():
@@ -389,7 +360,6 @@ class DinoSegmentor():
     #iterate over the scans and do the segmentation
     def segmentation(self):
         model = self.load_pretrained_model()
-        #import pdb; pdb.set_trace()
         #iterate over each scan which where selected in the initialization
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
