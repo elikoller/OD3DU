@@ -403,7 +403,6 @@ class Scan3rDinov2Generator():
     def generateFeatures(self):
        
         self.feature_generation_time = 0.0
-        print("scanid in generate function", len(self.scan_ids))
         for scan_id in tqdm(self.scan_ids):
             with torch.no_grad():
                 features_mode = self.generateFeaturesEachScan(scan_id)
@@ -509,7 +508,7 @@ def main():
 
     #also generate for the dino_:segmentation boundingboxes
     scan3r_gcvit_generator = Scan3rDinov2Generator(cfg, split, for_dino_seg = True)
-    #scan3r_gcvit_generator.register_model() #we use the same model again
+    scan3r_gcvit_generator.register_model() #we use the same model again
     scan3r_gcvit_generator.generateFeatures()
 
    
