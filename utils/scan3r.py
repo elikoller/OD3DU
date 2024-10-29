@@ -6,11 +6,60 @@ from plyfile import PlyData, PlyElement
 from scipy.spatial.transform import Rotation as R
 import pickle
 import cv2
+import plyfile
+from collections import Counter
 
 """
 start of added by Elena
 """
 #added by elena
+
+
+#for a given scene get the colours of the differnt object_ids
+def get_present_obj_ids(data_dir,scan_id):
+    #access the mesh file to get the colour of the ids
+    mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.align.annotated.v2.ply")
+    ply_data = plyfile.PlyData.read(mesh_file)
+    # Extract vertex data
+    vertices = ply_data['vertex']
+    vertex_count = len(vertices)
+    
+    # Initialize dictionary to store object_id -> color mappings
+    object_colors = {}
+    
+# Iterate through vertices
+    for i in range(vertex_count):
+        vertex = vertices[i]
+        object_id = vertex['objectId']
+        color = (vertex['red'], vertex['green'], vertex['blue'])
+        
+        # Check if object_id already in dictionary, otherwise initialize a Counter
+        if object_id in object_colors:
+            object_colors[object_id][color] += 1
+        else:
+            object_colors[object_id] = Counter({color: 1})
+    
+    # Convert Counter to dictionary with most frequent color
+    for object_id, color_counter in object_colors.items():
+        most_common_color = color_counter.most_common(1)[0][0]
+        object_colors[object_id] = np.array(most_common_color[::-1])
+    
+    return list(object_colors.keys())
+
+#transforms the pose from resacn coordinates to refrence coordinates
+def pose_in_reference(data_root_dir, scan_id , pose_rescan):
+    #transform the centers of rescan to ref coord
+    path = osp.join(data_root_dir,"files", "3RScan.json")
+    map_id_to_trans = read_transform_mat(path)
+    transform = map_id_to_trans[scan_id]
+    transform= transform.reshape(4,4)
+
+    #transform the pose
+
+    return    transform.transpose() * pose_rescan
+
+
+
 #return the pkl file of the gt_annotation of a scan, data_dir is path to R3Scan
 def get_scan_gt_anno(data_dir, scan_id, patch_w, patch_h):
     patch_w_str = str(patch_w)
