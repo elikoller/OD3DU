@@ -34,11 +34,7 @@ import sys
 ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
 print(ws_dir)
 sys.path.append(ws_dir)
-from utils import common, scan3r
-
-"""
-this currently takes only one rescan per reference scene into consideration
-"""
+from utils import common, scan3r, od3du_utils
 
 class Evaluator():
     def __init__(self, cfg, split):
@@ -60,10 +56,6 @@ class Evaluator():
         #parameters
         self.k_means = cfg.parameters.k_means
         self.ths = cfg.parameters.threshold
-
-
-        
-
 
         #patch info 
         self.image_patch_w = self.cfg.data.img_encoding.patch_w
@@ -97,16 +89,12 @@ class Evaluator():
 
         ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split[:]:
-            #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
             if rescans:
                 # Add the first rescan (or any specific rescan logic)
                 self.all_scans_split.append(rescans[0])
 
-        # print("reference scans ", np.array(ref_scans_split))
-        # print("rescans ", self.all_scans_split)
-        #this way we always work with the same things
         self.all_scans_split.sort()
 
         if self.rescan:
@@ -115,383 +103,17 @@ class Evaluator():
             self.scan_ids = ref_scans_split
 
 
-        print("scan_id_length", len(self.scan_ids))
-
-
-
-
     
         #output path for components
         self.out_dir = osp.join(self.scans_files_dir, "Results", "Matching_Prediction_" + self.split)
         print(self.out_dir)
         common.ensure_dir(self.out_dir)
 
-     
-    def load_frame_idxs(self,data_dir, scan_id, skip=None):
-      
-        frames_paths = glob.glob(osp.join(data_dir, scan_id, 'sequence', '*.jpg'))
-        frame_names = [osp.basename(frame_path) for frame_path in frames_paths]
-        frame_idxs = [frame_name.split('.')[0].split('-')[-1] for frame_name in frame_names]
-        frame_idxs.sort()
-
-        if skip is None:
-            frame_idxs = frame_idxs
-        else:
-            frame_idxs = [frame_idx for frame_idx in frame_idxs[::skip]]
-        return frame_idxs
-    
-
-    
-    def get_majorities(self, distanc, obj_ids ,frame_ids, k , th):
-        #make te majority voting
-        majorities = {}
-        unique_new_obj = -1
-        for i, (dist , ids, frame_id) in enumerate(zip(distanc,obj_ids, frame_ids)):
-            closest_dist = dist[:k]
-            closest_ids = ids[:k]
-
-            #get the majority
-            most_common_class, _ = Counter(closest_ids).most_common(1)[0]
-
-            majority_distances = closest_dist[closest_ids == most_common_class]
-            average_distance = np.mean(majority_distances)
-
-            #thresthold the average majority of the distances, it it is above the threshold, give the id -1 which represents an unseen obj
-            if average_distance < th:
-                #too far away
-                majorities[frame_id] = unique_new_obj
-                unique_new_obj = unique_new_obj -1
-                
-
-            else:
-                majorities[frame_id]= most_common_class
-
-        return majorities
-
-    def generate_pixel_level(self, segmentation,majorities):
-        pixel_ids = np.zeros((self.image_height, self.image_width))
-        #print(majorities.keys())
-        #iterate through all the segmentation regions of the dino segmentation
-        for seg_region in segmentation:
-            mask_id = seg_region["object_id"]
-            #find the index of mask_id in frame_obj_ids
-            #index = np.where(frame_obj_ids == mask_id)[0]
-            #get to what the region mapped in the majorities
-            #print("mask id", mask_id)
-            matched_id = majorities[mask_id]
-            #print("matched id ", matched_id)
-            mask = seg_region["mask"]
-            boolean_mask = mask == 225
-            pixel_ids[boolean_mask] = matched_id 
-            
-
-        return pixel_ids
-    
-    def quantize_to_patch_level(self, pixelwise_img):
-        #get the shape of the pixelwise img
-        patch_width = int(self.image_width/ self.image_patch_w)
-        patch_height= int(self.image_height/self.image_patch_h)
-
-        patchwise_id = np.zeros((self.image_patch_h,self.image_patch_w))
-
-        for i in range(self.image_patch_h):
-                for j in range(self.image_patch_w):
-                    # Define the coordinates of the current patch
-                    h_start = i * patch_height
-                    w_start = j * patch_width
-                    h_end = h_start + patch_height
-                    w_end = w_start + patch_width
-                    
-                    # Get the current patch from the input matrix
-                    patch = pixelwise_img[h_start:h_end, w_start:w_end]
-                    
-                    # get the most reoccuring id of the patch
-                    flattened_patch = patch.flatten()
-                    # Find the most common value in the patch
-                    value_counts = Counter(flattened_patch)
-                    most_common_id = value_counts.most_common(1)[0][0]
-                    
-                    # Assign the most common ID to the new matrix
-                    patchwise_id[i, j] = most_common_id
-
-
-        return patchwise_id
-
-  
-
-    def calculate_iou(self,mask1, mask2):
-        #intersection/ union of 2 masks -> iou score
-        intersection = np.logical_and(mask1, mask2).sum()
-        union = np.logical_or(mask1, mask2).sum()
-        if union == 0:
-            return 0
-        return intersection / union
-    
-
-        #iterate over the objects of the new image and make iou of the bigges gt object it represents
-    def compute_iou_metric_precision(self, gt_patches, computed_patches, new_objects):
-        #get the ids over which we will iterate
-        img_ids = np.unique(computed_patches)
-        ious = []
-        
-        #iterate over them
-        for id in img_ids:
-            #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
-         
-            #get the coordinates of this id
-            coords = np.argwhere(computed_patches == id)
-
-            #access the coords in the gt
-            gt_ids_at_coords = gt_patches[tuple(coords.T)]
-            #get the max id
-            gt_max_id = Counter(gt_ids_at_coords).most_common(1)[0][0]
-            
-            #if the gt id is 0 we have no info
-            if gt_max_id != 0:
-                #check if it should be a new object 
-                if id < 0:
-                    #if is new object but did not get detected
-                    if gt_max_id not in new_objects:
-                        ious.append(0)
-                        continue
-                    #case predicted new and gt_max also belongs to new obj
-                    #create the masks for the iou computeaiton
-                    #since the ids do not match filter the ids individually
-                    compued_mask = (computed_patches == id)
-                    gt_mask = (gt_patches == gt_max_id)
-
-                    #compute the iou
-                    iou_id = self.calculate_iou(compued_mask, gt_mask)
-                    ious.append(iou_id)
-
-                #we look at a seen object
-                else:
-                    #the predicted id does not match the gt so already wront
-                    if id != gt_max_id:
-                        ious.append(0)
-                        continue
-                    #the object ids overlap so find the iou
-                    #create the masks for the iou computeaiton
-                    compued_mask = (computed_patches == id)
-                    gt_mask = (gt_patches == gt_max_id)
-
-                    #compute the iou
-                    iou_id = self.calculate_iou(compued_mask, gt_mask)
-                    ious.append(iou_id)
-        
-        if(len(ious) == 0):
-            return np.nan
-
-        return np.nanmean(ious)
-
-
-    def compute_iou_metric_recall(self, gt_patches, computed_patches, new_objects):
-        gt_ids  = np.unique(gt_patches)
-        ious = []
-       
-        #iterate over them
-        for id in gt_ids:
-            #only do actual objects - not 0 id
-           
-            if id != 0:
-                #ids which are bigger than 0 are matched to the objects which were already in the scenegraph
-     
-                #get the coordinates of this id
-                coords = np.argwhere(gt_patches == id)
-
-                #access the coords in the gt
-                computed_ids_at_coords = computed_patches[tuple(coords.T)]
-                #get the max id
-                computed_max_id = Counter(computed_ids_at_coords).most_common(1)[0][0]
-                #check if it should be a new object
-                # gt new obj 
-                
-                if id in new_objects:
-                    #if is new object but did not get predicted as unseen
-                    if computed_max_id > 0:
-                      
-                        ious.append(0)
-                        continue
-
-                    #create the masks for the iou computeaiton
-                    gt_mask = (gt_patches == id)
-                    computed_mask = (computed_patches == computed_max_id)
-
-
-                    #compute the iou
-                    iou_id = self.calculate_iou(gt_mask, computed_mask)
-                   
-                    ious.append(iou_id)
-                #we are talking about a seen object
-                else:
-                    #not the correct predicted id
-                    if id != computed_max_id:
-                      
-                        ious.append(0)
-                        continue
-                     #create the masks for the iou computeaiton
-                    gt_mask = (gt_patches == id)
-                    computed_mask = (computed_patches == computed_max_id)
-
-                    #compute the iou
-                    iou_id = self.calculate_iou(gt_mask, computed_mask)
-                  
-                    ious.append(iou_id)
-
-        if(len(ious) == 0):
-            return np.nan
-        
-        return np.mean(ious)
-
-
-
-
-      
-
-    
-    
-    #for a given scene get the colours of the differnt object_ids
-    def get_present_obj_ids(self, data_dir,scan_id):
-        #access the mesh file to get the colour of the ids
-        mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.annotated.v2.ply")
-        ply_data = plyfile.PlyData.read(mesh_file)
-        # Extract vertex data
-        vertices = ply_data['vertex']
-        vertex_count = len(vertices)
-        
-        # Initialize dictionary to store object_id -> color mappings
-        object_colors = {}
-        
-    # Iterate through vertices
-        for i in range(vertex_count):
-            vertex = vertices[i]
-            object_id = vertex['objectId']
-            color = (vertex['red'], vertex['green'], vertex['blue'])
-            
-            # Check if object_id already in dictionary, otherwise initialize a Counter
-            if object_id in object_colors:
-                object_colors[object_id][color] += 1
-            else:
-                object_colors[object_id] = Counter({color: 1})
-        
-        # Convert Counter to dictionary with most frequent color
-        for object_id, color_counter in object_colors.items():
-            most_common_color = color_counter.most_common(1)[0][0]
-            object_colors[object_id] = np.array(most_common_color[::-1])
-        
-        return list(object_colors.keys())
-    
-
-
-    #returns an object of the form fetures     features: object_id: all feature vectors of this id
-    def read_ref_data(self,ref_path):
-        features = {}
-
-        # Open the HDF5 file for reading
-        with h5py.File(ref_path, 'r') as hdf_file:
-            # Iterate over each object ID (which corresponds to the dataset keys)
-            for object_key in hdf_file.keys():
-                # Read the dataset corresponding to the object_key
-                stacked_features = hdf_file[object_key][:]
-                
-                # Convert the string key back to the original object_id if necessary
-                object_id = object_key
-                
-                # Store the feature list in the dictionary
-                features[int(object_id)] = [stacked_features[i] for i in range(stacked_features.shape[0])]
-
-        return features
-    
-    #returns an object of the form features    features: frame_idx : obj_id : feature vector of the id
-    def read_scan_data(self, scan_path):
-        features = {}
-
-        with h5py.File(scan_path, 'r') as hdf_file:
-            # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
-            for frame_idx in hdf_file.keys():
-                # Initialize a dictionary for each frame_idx
-                features[frame_idx] = {}
-                
-                # Access the group corresponding to the current frame_idx
-                frame_group = hdf_file[frame_idx]
-                
-                # Iterate over each object_id within the current frame_idx group
-                for object_key in frame_group.keys():
-                    # Convert object_key back to object_id if necessary
-                    object_id = object_key
-                
-                    # Retrieve the feature vector from the dataset
-                    feature_vector = frame_group[object_key][:]
-                    
-                    # Store the feature vector in the dictionary under the object_id
-                    features[frame_idx][int(object_id)] = feature_vector
-
-        return features
-
-    #returns featuer in the form of features: frame: list of {objext_id, bbox, mask} objects
-    def read_segmentation_data(self,segmentation_path):
-        features = {}
-        with h5py.File(segmentation_path, 'r') as hdf_file:
-             for frame_idx in hdf_file.keys():
-                #init boxlist for curr frame
-                bounding_boxes = []
-                
-                # get info 
-                frame_group = hdf_file[frame_idx]
-                
-                #iterate over each boundingbox
-                for bbox_key in frame_group.keys():
-                    bbox_group = frame_group[bbox_key]
-                    
-                    #get te obj id
-                    object_id = int(bbox_group.attrs['object_id'])
-                    
-                    #get the boundingbox
-                    bbox = bbox_group['bbox'][:]
-                    
-                    # get the maskt
-                    mask = bbox_group['mask'][:]
-                    
-                    # append to list
-                    bounding_boxes.append({
-                        'object_id': object_id,
-                        'bbox': bbox,
-                        'mask': mask
-                    })
-                
-                # stor it to the corresponding frame
-                features[frame_idx] = bounding_boxes
-        return features
-
-    def read_matching_data(self,scan_id):
-        # get the file and iterate through everything to create an object
-        matchfile = osp.join(self.scans_files_dir, "Predicted_Matches", scan_id + ".h5")
-        with h5py.File(matchfile, 'r') as hdf_file:
-            loaded_matches = {}
-            
-            # Iterate through frame indices
-            for frame_idx in hdf_file.keys():
-                matches = {}
-                
-                # Access the group for each frame index
-                frame_group = hdf_file[frame_idx]
-                
-                # Load the frame_id -> obj mappings
-                for frame_id in frame_group.keys():
-                    obj = int(frame_group[frame_id][()])
-                    matches[int(frame_id)] = int(obj)  # Convert back to int
-                
-                loaded_matches[frame_idx] = matches 
-
-        return loaded_matches
-    
-
 
     def eval_scan(self,scan_id, mode):
         
-        #print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
         # Load image paths and frame indices
-        frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
+        frame_idxs_list = scan3r.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
         reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
@@ -500,17 +122,15 @@ class Evaluator():
 
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join( self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
-        segmentation_data = self.read_segmentation_data(segmentation_info_path)
+        segmentation_data = od3du_utils.read_segmentation_data(segmentation_info_path)
 
         #access the matched ids
-        predicted_ids = self.read_matching_data(scan_id)
+        predicted_ids = od3du_utils.read_matching_data(self.scans_files_dir, scan_id)
 
 
         #find out which objects have not been present in the reference scene ( not only frame!)
-        present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
-        present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-        # print("presetn obj", present_obj_reference)
-        # print("new obj", present_obj_scan)
+        present_obj_reference = scan3r.get_present_obj_ids(self.data_root_dir,reference_id)
+        present_obj_scan =  scan3r.get_present_obj_ids(self.data_root_dir,scan_id)
         new_objects = list(set(present_obj_scan) - set(present_obj_reference))
        
       
@@ -554,10 +174,10 @@ class Evaluator():
                     for k_idx, k in enumerate (self.k_means):
                     
                         #translate the matched object ids to pixellevel of the frame
-                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx])
+                        cosine_pixel_level = od3du_utils.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx], self.image_height, self.image_width)
                         
                         #quantize to patchlevel of to be comparable to gt
-                        computed_patches = self.quantize_to_patch_level(cosine_pixel_level)
+                        computed_patches = od3du_utils.quantize_to_patch_level(cosine_pixel_level, self. image_height, self.image_width, self.image_patch_h, self.image_patch_w)
 
                         
                         img_ids = np.unique(computed_patches)
@@ -579,21 +199,7 @@ class Evaluator():
                             
 
                             if gt_max_id != 0:
-                                #check if it should be a new object 
-                                # if id < 0:  decomment this block!!
-                                #     #if is new object but did not get detected
-                                #     if gt_max_id not in new_objects:
-                                #         fp += 1
-                                #         continue
-                                #     #case predicted new and gt_max also belongs to new obj
-                                #     else:
-                                #         tp += 1
-                                #         detected_gt_ids.add(gt_max_id)
-                            
-                
-
                                 #we look at a seen object
-                                #else:
                                 if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
                                     #the predicted id does not match the gt so already wront
                                     if (id != gt_max_id):
@@ -619,43 +225,7 @@ class Evaluator():
                             # If this ground truth object was not detected
                             if (gt_id not in detected_gt_ids) and (gt_id not in new_objects):  #tbc the new objects part
                                 fn += 1
-                        #     #if the gt id is 0 we have no info this version still has neew objects inside
-                        #     if gt_max_id != 0:
-                        #         #tbc decomment this section
-                        #         #check if it should be a new object 
-                        #         if id < 0:
-                        #             #if is new object but did not get detected
-                        #             if gt_max_id not in new_objects:
-                        #                 fp += 1
-                        #                 continue
-                        #             #case predicted new and gt_max also belongs to new obj
-                        #             else:
-                        #                 tp += 1
-                        #                 detected_gt_ids.add(gt_max_id)
-                            
-                
 
-                        #         #we look at a seen object
-                        #         #tbc decomment else and put the part below into else
-                        #         else:
-                        #             #the predicted id does not match the gt so already wront
-                        #             if id != gt_max_id:
-                        #                 fp += 1
-                        #                 continue
-                        #             #the the id == gt_max id
-                        #             else:
-                        #                 tp += 1
-                        #                 detected_gt_ids.add(gt_max_id)
-
-                        # #now we also comlete false negatives so objects which got not detected
-                        # gt_ids = np.unique(gt_patches)   
-                        # for gt_id in gt_ids:
-                        #     if gt_id == 0:
-                        #         continue  # Skip background
-                            
-                        #     # If this ground truth object was not detected
-                        #     if gt_id not in detected_gt_ids:
-                        #         fn += 1
 
 
                         # calculate precision, recall, and F1-score
@@ -680,12 +250,12 @@ class Evaluator():
         
         #print(f"Process {os.getpid()} is working on scene ID: {scan_id}")
         # Load image paths and frame indices
-        frame_idxs_list = self.load_frame_idxs(self.scans_scenes_dir,scan_id)
+        frame_idxs_list = scan3r.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
         #access the necessary data for the reference scene
         reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
         reference_info_path = osp.join(self.scans_files_dir, "Features2D/projection", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(reference_id))
-        ref_data = self.read_ref_data(reference_info_path)
+        ref_data = od3du_utils.read_ref_data(reference_info_path)
         
     
         #build a treee structure fo a fast access of cosine similarity keeping also the obj_ids 
@@ -713,27 +283,22 @@ class Evaluator():
 
         #access the scan feature info to iterate over it later
         scan_info_path = osp.join(self.scans_files_dir, "Features2D/dino_segmentation", self.model_name, "patch_{}_{}".format(self.image_patch_w,self.image_patch_h), mode, "{}.h5".format(scan_id))
-        scan_data = self.read_scan_data(scan_info_path)
+        scan_data = od3du_utils.read_scan_data(scan_info_path)
 
 
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
-        segmentation_data = self.read_segmentation_data(segmentation_info_path)
+        segmentation_data = od3du_utils.read_segmentation_data(segmentation_info_path)
 
 
 
 
 
         #find out which objects have not been present in the reference scene ( not only frame!)
-        present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
-        present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-        # print("presetn obj", present_obj_reference)
-        # print("new obj", present_obj_scan)
+        present_obj_reference = scan3r.get_present_obj_ids(self.data_root_dir,reference_id)
+        present_obj_scan =  scan3r.get_present_obj_ids(self.data_root_dir,scan_id)
         new_objects = list(set(present_obj_scan) - set(present_obj_reference))
-        # print("unseen obj", new_objects)
 
-        #init the result for this scan_id
-        #this bool needed for later
       
         scan_cosine_metric_precision = []
         scan_cosine_metric_recall = []
@@ -800,13 +365,13 @@ class Evaluator():
                 for t_idx, th in enumerate (self.ths):
                     for k_idx, k in enumerate (self.k_means):
                         # get the majority vote of the k closest points
-                        cosine_majorities = self.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
+                        cosine_majorities = od3du_utils.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
 
                         #translate the matched object ids to pixellevel of the frame
-                        cosine_pixel_level = self.generate_pixel_level(segmentation_data[frame_idx],cosine_majorities)
+                        cosine_pixel_level = od3du_utils.generate_pixel_level(segmentation_data[frame_idx],cosine_majorities, self.image_height, self.image_width)
                         
                         #quantize to patchlevel of to be comparable to gt
-                        computed_patches = self.quantize_to_patch_level(cosine_pixel_level)
+                        computed_patches = od3du_utils.quantize_to_patch_level(cosine_pixel_level, self.image_height, self.image_width, self.image_patch_h, self.image_patch_w)
 
                         img_ids = np.unique(computed_patches)
                     
@@ -828,21 +393,6 @@ class Evaluator():
 
                             #if the gt id is 0 we have no info
                             if gt_max_id != 0:
-                                #check if it should be a new object 
-                                # if id < 0:  decomment this block!!
-                                #     #if is new object but did not get detected
-                                #     if gt_max_id not in new_objects:
-                                #         fp += 1
-                                #         continue
-                                #     #case predicted new and gt_max also belongs to new obj
-                                #     else:
-                                #         tp += 1
-                                #         detected_gt_ids.add(gt_max_id)
-                            
-                
-
-                                #we look at a seen object
-                                #else:
                                 if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
                                     #the predicted id does not match the gt so already wront
                                     if (id != gt_max_id):
@@ -887,7 +437,6 @@ class Evaluator():
 
         
 
-            
                         
         return  np.nanmean(scan_cosine_metric_precision,axis=0), np.nanmean(scan_cosine_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
 
@@ -924,74 +473,17 @@ class Evaluator():
                     best_recalls.append(cosine_metric_recall[0][0])
                 # progressed
                 pbar.update(1)
-
-            # with tqdm(total=len(self.scan_ids)) as pbar:
-            #     for future in concurrent.futures.as_completed(futures):
-            #         scan_id = futures[future]
-            #         try:
-            #             cosine_iou_metric_precision, cosine_iou_metric_recall, cosine_metric_f1 = future.result()
-                        
-            #            # get the result matricies
-            #             all_cosine_iou_metric_precision.append(cosine_iou_metric_precision)
-            #             all_cosine_iou_metric_recall.append(cosine_iou_metric_recall)
-            #             all_cosine_iou_metric_f1.append(cosine_metric_f1)
-            #             print("added results of scan id ", scan_id, " successfully")
-            #         except Exception as exc:
-            #             print(f"Scan {scan_id} generated an exception: {exc}")
-            #             print("Traceback details:")
-            #             traceback.print_exc()
-                    
-            #         # progressed
-            #         pbar.update(1)
-
-        # new_obj = []
-        # for scan_id in tqdm(self.scan_ids, desc="Processing Scans"):
-        #     # print an array of scenes 
-        #     reference_id = scan3r.get_reference_id(self.data_root_dir, scan_id)
-        #     present_obj_reference = self.get_present_obj_ids(self.data_root_dir,reference_id)
-        #     present_obj_scan =  self.get_present_obj_ids(self.data_root_dir,scan_id)
-        #     new_objects = list(set(present_obj_scan) - set(present_obj_reference))
-        #     if len(new_objects) > 0:
-        #         new_obj.append(reference_id)
-
-
-        # print("array of references with new obj", new_obj)
-        
-
-
-       
-
-
-        print("writing the file")
-       
-      
-        # print("precision", mean_cosine_iou_metric_precision)
-        # print("recall", mean_cosine_iou_metric_recall) 
-        # print("F1 score", mean_cosine_metric_f1)     
-
         #create sesult dict
         result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
                   "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
                   "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0),
                 }
-
-
-        # result = {"cosine_iou_metric_precision": all_cosine_metric_precision,
-        #         "cosine_iou_metric_recall": all_cosine_metric_recall,
-        #         "cosine_mectric_f1":all_cosine_metric_f1
-        #         }
                   
         #save the file in the results direcrtory
         result_dir = osp.join(self.out_dir,mode)
         common.ensure_dir(result_dir)
         result_file_path = osp.join(result_dir,  "statistic_predicted_matches.pkl")
         common.write_pkl_data(result, result_file_path)
-                    
-                
-    
-              
-
-            
 
 
 
@@ -1012,20 +504,12 @@ def main():
     from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
-    #do it for the projections first
-    #also generate for the dino_:segmentation boundingboxes
-    print("new obj")
-    # evaluate = Evaluator(cfg, 'train')
-    # print("start avg computation")
-    # evaluate.compute("avg")
-    # # print("start max computation")
-    # # evaluate.compute("max")
-    # print("start median computation")
-    # evaluate.compute("median")
-
     evaluate = Evaluator(cfg, split)
     print("start avg computation")
     evaluate.compute("avg")
+
+    # evaluate.compute("max")
+    # evaluate.compute("median")
    
   
 

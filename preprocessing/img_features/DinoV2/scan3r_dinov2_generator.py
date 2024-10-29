@@ -429,23 +429,7 @@ class Scan3rDinov2Generator():
             #     # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
             #     for frame_idx in hdf_file.keys():
             #         # Initialize a dictionary for each frame_idx
-            #         features[int(frame_idx)] = {}
-                    
-            #         # Access the group corresponding to the current frame_idx
-            #         frame_group = hdf_file[frame_idx]
-                    
-            #         # Iterate over each object_id within the current frame_idx group
-            #         for object_key in frame_group.keys():
-            #             # Convert object_key back to object_id if necessary
-            #             object_id = int(object_key)
-                        
-            #             # Retrieve the feature vector from the dataset
-            #             feature_vector = frame_group[object_key][:]
-                        
-            #             # Store the feature vector in the dictionary under the object_id
-            #             features[int(frame_idx)][object_id] = feature_vector
-
-            # # Now, you can access features[frame_idx][object_id] to get the feature vector
+           
 
 
 
@@ -469,18 +453,7 @@ class Scan3rDinov2Generator():
             # # Open the HDF5 file for reading
             # with h5py.File(out_file, 'r') as hdf_file:
             #     # Iterate over each object ID (which corresponds to the dataset keys)
-            #     for object_key in hdf_file.keys():
-            #         # Read the dataset corresponding to the object_key
-            #         stacked_features = hdf_file[object_key][:]
-                    
-            #         # Convert the string key back to the original object_id if necessary
-            #         object_id = int(object_key)
-                    
-            #         # Store the feature list in the dictionary
-            #         features[object_id] = [stacked_features[i] for i in range(stacked_features.shape[0])]
-
-            # # Now, you can access features[obj_id] as a list of feature vectors corresponding to the object
-
+         
 
          
 
