@@ -325,16 +325,19 @@ class Evaluator():
             
             #get the votes
             largest_cluster_votes = largest_cluster_data["votes"]
-            #create the objec center
-            obj_center = np.median(cluster_pcl, axis= 0)
-            #return the object for the evaluation
-            all_centers[obj_id] = {
-                'center': obj_center,
-                "size": len(cluster_pcl),
-                "votes" : largest_cluster_votes,
-                "points": cluster_pcl
+            #make sure that the cluster size is bigger than 0
+            if len(cluster_pcl > 0):
+                #create the objec center
+                obj_center = np.median(cluster_pcl, axis= 0)
+                #return the object for the evaluation
+            
+                all_centers[obj_id] = {
+                    'center': obj_center,
+                    "size": len(cluster_pcl),
+                    "votes" : largest_cluster_votes,
+                    "points": cluster_pcl
 
-            }
+                }
 
         return all_centers
  

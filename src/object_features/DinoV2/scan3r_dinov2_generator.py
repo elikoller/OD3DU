@@ -97,7 +97,6 @@ class Scan3rDinov2Generator():
                 self.scans2refscans[scan['reference']] = ref_scan_id
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        print("ref scan split", len(ref_scans_split))
         self.all_scans_split = []
     
 
