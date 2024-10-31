@@ -9,11 +9,11 @@ source $CONDA_BIN/activate OD3DU
 cd $OD3DU_SPACE
 
 # generate patch-level features with Dinov2
-python ./sceneGraph_update/predict_obj_centers_statistics.py \
-    --config ./sceneGraph_update/centers_prediction_train.yaml \
+python ./src/center_prediction_3D/predict_obj_centers_statistics.py \
+    --config ./src/center_prediction_3D/centers_prediction_train.yaml \
     --split train
 
 
-python ./sceneGraph_update/predict_obj_centers_statistics.py \
-    --config ./sceneGraph_update/centers_prediction_test.yaml \
+python ./src/center_prediction_3D/predict_obj_centers_statistics.py \
+    --config ./src/center_prediction_3D/centers_prediction_test.yaml \
     --split test

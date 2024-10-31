@@ -9,10 +9,10 @@ source $CONDA_BIN/activate OD3DU
 cd $OD3DU_SPACE
 
 # generate patch-level features with Dinov2
-python ./matching/computation_statistics.py \
-    --config ./matching/evaluator_train.yaml \
+python ./src/segment2object_matching/computation_statistics.py \
+    --config ./src/segment2object_matching/evaluator_train.yaml \
     --split train
 
-python ./matching/computation_statistics.py \
-    --config ./matching/evaluator_test.yaml \
+python ./src/segment2object_matching/computation_statistics.py \
+    --config ./src/segment2object_matching/evaluator_test.yaml \
     --split test

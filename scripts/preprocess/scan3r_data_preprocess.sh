@@ -9,11 +9,11 @@ export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 source $CONDA_BIN/activate OD3DU
 
 cd $OD3DU_SPACE
-python ./preprocessing/scan3r/preprocess_scan3r.py \
-    --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
+python ./src/preprocessing/scan3r/preprocess_scan3r.py \
+    --config ./src/preprocessing/scan3r/preprocess_scan3r.yaml \
     --split train
-python ./preprocessing/scan3r/preprocess_scan3r.py \
-    --config ./preprocessing/scan3r/preprocess_scan3r.yaml \
+python ./src/preprocessing/scan3r/preprocess_scan3r.py \
+    --config ./src/preprocessing/scan3r/preprocess_scan3r.yaml \
     --split test
 
 

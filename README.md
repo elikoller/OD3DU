@@ -1,34 +1,36 @@
 <div align='center'>
 <h2 align="center"> OD3DU: Object Detection based 3D Scene Understanding </h2>
 
-<a href="https://y9miao.github.io/">Elena Koller</a><sup>1</sup>, 
-<a href="https://cvg.ethz.ch/team/Dr-Francis-Engelmann">Zuria Bauer</a><sup>1</sup> , 
-<a href="https://cvg.ethz.ch/team/Dr-Daniel-Bela-Barath"> Dániel Béla Baráth</a> <sup>1</sup>
+<a href="linkedin.com/in/elena-koller-3b94041b4">Elena Koller</a><sup>1</sup>, 
+<a href="https://cvg.ethz.ch/team/Dr-Zuria-Bauer"> Dr. Zuria Bauer</a><sup>1</sup> , 
+<a href="https://cvg.ethz.ch/team/Dr-Daniel-Bela-Barath"> Dr. Dániel Béla Baráth</a> <sup>1</sup>
+<a href="https://cvg.ethz.ch/team/Prof-Dr-Marc-Pollefeys"> Prof. Dr. Marc Pollefeys</a> <sup>1</sup>
 
 <sup>1</sup>ETH Zurich   
 
 OD3DU operates in low-dynamic real-world indoor environments. Given a reference scene graph representing the scene at time t0 and an RGB-D rescan of the scene at time ti, OD3DU predicts the reference 3D object instance centers in the rescan. Since the environment is low-dynamic, scene changes can not be captured directly by the camera but have to be inferred post-hoc.
 
 
-![teaser](./repo_img/pipeline_overview.png)
+![teaser](./data/repo_img/pipeline_overview.png)
 </div>
-
-
-
-
 
 
 ## Code Structure:
 
 ```
-├── BT
-│   ├── preprocessing         <- data preprocessing
-│   ├── configs               <- configuration definition
+├── OD3DU
+│   ├── configs                         <- configuration definition
 │   ├── src
-│   │   │── datasets          <- dataloader for 3RScan and Scannet data
+│   │   │── preprocessing               <- preprocessing of scene graph
+│   │   │── gt_annotations              <- generates 2D ground truths 
+│   │   │── rescan_segmentation         <- segmentation of the rescan sequence using Mask2Former x DinoV2
+│   │   │── object_2D_features          <- generates object features for both reference scene graph and rescan
+│   │   │── segment2object_matching     <- matches predicted segments to reference objects
+│   │   │── center_prediction_3D        <- predicts 3D object centers
 │   │   
-│   ├── scripts               <- implementation scripts 
-│   │── utils                 <- util functions
+│   ├── scripts                         <- implementation scripts 
+│   │── utils                           <- util functions
+│   │── environment.yml                 <- conda environment
 │   │── README.md                    
 ```
 
@@ -37,87 +39,47 @@ OD3DU operates in low-dynamic real-world indoor environments. Given a reference 
 The project has been tested on Ubuntu 20.04.
 The main dependencies of the project are the following:
 
-
-
 ```yaml
-python: 3.8.15
-cuda: 11.6
+python: 3.8.20
+cuda: 11.8
 ```
 You can set up an environment as follows :
 ```bash
-git clone https://github.com/y9miao/VLSG.git
-cd VLSG
+git clone https://github.com/elikoller/OD3DU.git
+cd OD3DU
 
-conda create -n "BT" python=3.8.15
-conda activate BT
-pip install -r requirement.txt
+conda env create -f environment.yml
 ```
 Other dependences:
 
-also we need python -m pip install pyviz3d for the visualization 
-
-Some dependencies are useless and give errors: cat requirement.txt | xargs -n 1 pip install
-
-this installs them and skipps whenever something is not working
-
-also installed
+For the semantic segmentation a separate docker container must be employed due to incompatible dependencies (<a href="https://github.com/facebookresearch/dinov2/issues/353">source</a>). The docker can be pulled the following way:
 
 
-the thing below is nt needed
 ```bash
-conda activate VLSG
-pip install -r other_deps.txt
-
-cd thrid_party/Point-NN
-pip install pointnet2_ops_lib/.
+docker pull spped2000/dinov2manyproblem:latest
 ```
 
-## Dataset Generation :hammer:
-### Download Dataset - 3RScan + 3DSSG
-Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/``, all files of 3DSSG to a new ``3RScan/files/`` directory within Scan3R. The additional meta files are available [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view?usp=sharing). Download the additional meta files and move them to ``3RScan/files/``.
+
+## Dataset Generation:
+### Download Dataset - 3RScan + 3DSSG + 
+Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/``, all files of 3DSSG to a new ``3RScan/files/`` directory within Scan3R. The additional meta files are available to be downloaded [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view). Download the additional meta files ([source repo](https://github.com/y9miao/VLSG)) and move them to ``3RScan/files/``. Additionaly, generate ``labels.instances.align.annotated.v2.ply`` (aligns the reference and rescan) using [this](https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py) repo. Add the newly generated ply file to the corresponding scene folder in ``3RScan/scenes/``.
 The structure should be:
 
 ```
 ├── 3RScan
-│   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
-│   │   ├──Features2D         <- Pre-computed patches features of query images
-│   │   ├──Features3D         <- Visual features of 3D objects not yet
-│   │   ├──orig               <- Scene Graph Data
-│   │   ├──patch_anno         <- Ground truth patch-object annotation of query images
+│   ├── files                 <- all 3DSSG files and additional meta files
 │   │   meta files
-│   ├── scenes                <- scans
+│   ├── scenes                <- scans (3RScan)
 ```
 
-> To generate ``labels.instances.align.annotated.v2.ply`` for each 3RScan scan, please refer to the repo from 
-[here](``https://github.com/ShunChengWu/3DSSG/blob/master/data_processing/transform_ply.py``).  https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py
-
-(to do find out how that works because I got the link with the files from yang but the link expired :(      )
-
-To unzip the sequence files within the §RScan/scenes/  you can use
-directly in the terminal
-
-go into the correct directory with the scan_ids
-
- find . -name '*.zip' -execdir unzip -o '{}' -d sequence \; -execdir rm -f '{}' \;
-   
-
-go to the scenes directory and type in the following find . -name '*.zip' -execdir unzip -o '{}' -d sequence \; -execdir rm -f '{}' \;
-done
+Please do not forget to unzip the sequence files within the scenes directory.
 
 
 
-also some more confusing stuff is the following: the dataset did not provide the graphdata for the evaluation set so in this paper: the original validation set was taken and then split into validation and test. hence for the dataset only the test and validation set get accessed
+### Dataset Pre-process:
+We pre-process the information provided in the 3RScan dataset and the metafiles in order to get scene graph information along with 2D and 3D ground truths. The code for the preprocessing can be found here ``src/preprocessing``
 
-
-### Dataset Pre-process :hammer:
-After installing the dependencies, we download and pre-process the datasets. 
-
-First, we pre-process the scene graph information provided in the 3RScan annotation. The relevant code can be found in the ``data-preprocessing/`` 
-directory.  
-
-E: Some changes happened I think the directory data-preprocessing is now called preprocessing only, also adjustment of the Data_Root_dir to the new one (plus the adding of the definition into the utis scan3r.py that you sent me)
-
-Oh also there is Data root dir in a lot of graphs below 
+The first script generates the scene graph datastructures of the scenes for both the train and test set. If you are not intending on performing parameter optimizations based on the train set, you can comment the commands for the train script out. Please also set the env variables of OD3DU_SPACE to the repo path, the San3R_ROOT_DIR  and CONDA_BIN
 
 Don't forget to set the env variables "VLSG_SPACE" as the repository path,  set "Data_ROOT_DIR" as the path to "3RScan" dataset and set "CONDA_BIN" to accordingly in the bash script.
 
@@ -126,6 +88,27 @@ bash scripts/preprocess/scan3r_data_preprocess.sh
 ```
 The result processed data will be save to "{Data_ROOT_DIR}/files/orig".
 <!-- > __Note__ To adhere to our evaluation procedure, please do not change the seed value in the files in ``configs/`` directory.  -->
+```
+
+├── 3RScan
+│   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
+│   │   ├──Segmentation       <- Segmentations of the input rescan
+│   │   ├──Features2D         <- Object features generated by DinoV2 (reference and rescan)
+│   │   ├──Predicted_Matches  <- input segment to reference object matches
+│   │   ├──Predicted_Centers  <- Predicted 3D object centers
+│   │   ├──Results            <- if evaluations are run, all results will be saved in this folder
+│   │   ├──orig               <- Scene Graph Data
+│   │   ├──patch_anno         <- 2D Ground truth patch-object annotation of the scenes
+│   │   ├──gt_projection      <- 2D Ground truth projection annotation of the scenes
+│   │   meta files
+│   ├── scenes                <- scans
+```
+
+
+
+also some more confusing stuff is the following: the dataset did not provide the graphdata for the evaluation set so in this paper: the original validation set was taken and then split into validation and test. hence for the dataset only the test and validation set get accessed
+
+
 
 ### Generating Ground Truth Patch-Object Annotastion
 To generate ground truth annotation, use : 
@@ -190,25 +173,30 @@ bash scripts/3D_center_prediction/predict_objects_statistics.sh
 ```
 
 
-## BibTeX :pray:
+
+
+After running all scripts the final folder structure will look the following way:
+
 ```
-@misc{miao2024scenegraphloc,
-      title={SceneGraphLoc: Cross-Modal Coarse Visual Localization on 3D Scene Graphs}, 
-      author={Yang Miao and Francis Engelmann and Olga Vysotska and Federico Tombari and Marc Pollefeys and Dániel Béla Baráth},
-      year={2024},
-      eprint={2404.00469},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
- ```
+
+├── 3RScan
+│   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
+│   │   ├──Segmentation       <- Segmentations of the input rescan
+│   │   ├──Features2D         <- Object features generated by DinoV2 (reference and rescan)
+│   │   ├──Predicted_Matches  <- input segment to reference object matches
+│   │   ├──Predicted_Centers  <- Predicted 3D object centers
+│   │   ├──Results            <- if evaluations are run, all results will be saved in this folder
+│   │   ├──orig               <- Scene Graph Data
+│   │   ├──patch_anno         <- 2D Ground truth patch-object annotation of the scenes
+│   │   ├──gt_projection      <- 2D Ground truth projection annotation of the scenes
+│   │   meta files
+│   ├── scenes                <- scans
+```
+
 
 ## Acknowledgments :recycle:
-In this project we use (parts of) the official implementations of the following works and thank the respective authors for sharing the code of their methods: 
+In this project we use (parts of) the official implementations of the following projects. We want to thank the respective authors for sharing the code for their works!
+- [SceneGraphLoc](https://github.com/y9miao/VLSG) 
 - [SGAligner](https://github.com/sayands/sgaligner) 
-- [OpenMask3D](https://openmask3d.github.io/)
-- [Lip-Loc](https://liploc.shubodhs.ai/) 
-- [Lidar-Clip](https://github.com/atonderski/lidarclip)
-- [AnyLoc](https://github.com/AnyLoc/AnyLoc)
-- [CVNet](https://github.com/sungonce/CVNet)
 - [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG)
 

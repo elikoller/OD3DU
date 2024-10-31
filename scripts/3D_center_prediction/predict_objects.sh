@@ -9,6 +9,6 @@ source $CONDA_BIN/activate OD3DU
 cd $OD3DU_SPACE
 
 # generate patch-level features with Dinov2
-python ./sceneGraph_update/predict_objects.py \
-    --config ./sceneGraph_update/object_predictor.yaml \
+python ./src/center_prediction_3D/predict_objects.py \
+    --config ./src/center_prediction_3D/object_predictor.yaml \
     --split test

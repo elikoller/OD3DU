@@ -10,18 +10,18 @@ cd $OD3DU_SPACE
 # project 3D object annotations to 2D query images
 
 # aggretate pixel-wise annotations to patch-wise annotations
-python ./preprocessing/gt_anno_2D/scan3r_obj_projector.py \
-    --config ./preprocessing/gt_anno_2D/gt_anno.yaml \
+python ./src/preprocessing/gt_anno_2D/scan3r_obj_projector.py \
+    --config ./src/preprocessing/gt_anno_2D/gt_anno.yaml \
     --split train
-python ./preprocessing/gt_anno_2D/scan3r_obj_img_associate.py \
-    --config ./preprocessing/gt_anno_2D/gt_anno.yaml \
+python ./src/preprocessing/gt_anno_2D/scan3r_obj_img_associate.py \
+    --config ./src/preprocessing/gt_anno_2D/gt_anno.yaml \
     --split train
 
 
-python ./preprocessing/gt_anno_2D/scan3r_obj_projector.py \
-    --config ./preprocessing/gt_anno_2D/gt_anno.yaml \
+python ./src/preprocessing/gt_anno_2D/scan3r_obj_projector.py \
+    --config ./src/preprocessing/gt_anno_2D/gt_anno.yaml \
     --split test
-python ./preprocessing/gt_anno_2D/scan3r_obj_img_associate.py \
-    --config ./preprocessing/gt_anno_2D/gt_anno.yaml \
+python ./src/preprocessing/gt_anno_2D/scan3r_obj_img_associate.py \
+    --config ./src/preprocessing/gt_anno_2D/gt_anno.yaml \
     --split test
 

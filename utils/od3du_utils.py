@@ -2,6 +2,7 @@
 import h5py
 import os.path as osp
 import numpy as np
+import plyfile
 import sys
 import open3d as o3d
 from collections import Counter
@@ -31,7 +32,7 @@ def read_matching_data(scans_files_dir, scan_id):
             # Load the frame_id -> obj mappings
             for frame_id in frame_group.keys():
                 obj = int(frame_group[frame_id][()])
-                matches[frame_id] = int(obj)  # Convert back to int
+                matches[int(frame_id)] = int(obj)  # Convert back to int
             
             loaded_matches[frame_idx] = matches 
 
@@ -183,7 +184,7 @@ def generate_pixel_level(segmentation,majorities, image_height, image_width):
     for seg_region in segmentation:
         mask_id = seg_region["object_id"]
         #get to what the region mapped in the majorities
-        matched_id = majorities[mask_id]
+        matched_id = majorities[int(mask_id)]
         #print("matched id ", matched_id)
         mask = seg_region["mask"]
         boolean_mask = mask == 225
@@ -222,6 +223,37 @@ def quantize_to_patch_level(pixelwise_img, image_height, image_width, image_patc
 
     return patchwise_id
 
+
+#for a given scene get the colours of the differnt object_ids
+def get_id_colours(data_dir,scan_id):
+    #access the mesh file to get the colour of the ids
+    mesh_file = osp.join(data_dir,"scenes", scan_id, "labels.instances.annotated.v2.ply")
+    ply_data = plyfile.PlyData.read(mesh_file)
+    # Extract vertex data
+    vertices = ply_data['vertex']
+    vertex_count = len(vertices)
+    
+    # Initialize dictionary to store object_id -> color mappings
+    object_colors = {}
+    
+   # Iterate through vertices
+    for i in range(vertex_count):
+        vertex = vertices[i]
+        object_id = vertex['objectId']
+        color = (vertex['red'], vertex['green'], vertex['blue'])
+        
+        # Check if object_id already in dictionary, otherwise initialize a Counter
+        if object_id in object_colors:
+            object_colors[object_id][color] += 1
+        else:
+            object_colors[object_id] = Counter({color: 1})
+    
+    # Convert Counter to dictionary with most frequent color
+    for object_id, color_counter in object_colors.items():
+        most_common_color = color_counter.most_common(1)[0][0]
+        object_colors[object_id] = np.array(most_common_color)
+    
+    return object_colors
 
 
 

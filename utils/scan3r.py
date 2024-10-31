@@ -9,12 +9,6 @@ import cv2
 import plyfile
 from collections import Counter
 
-"""
-start of added by Elena
-"""
-#added by elena
-
-
 #for a given scene get the colours of the differnt object_ids
 def get_present_obj_ids(data_dir,scan_id):
     #access the mesh file to get the colour of the ids
