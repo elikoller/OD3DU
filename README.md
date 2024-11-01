@@ -61,7 +61,7 @@ docker pull spped2000/dinov2manyproblem:latest
 ```
 
 ## Download Dataset: 3RScan + 3DSSG + Metadata 🗂️:
-Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/`` and all files of 3DSSG to a new ``3RScan/files/`` directory within 3RScan. The additional meta files can be downloaded [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view). Download the additional meta files and move them to ``3RScan/files/``.  The original repo of the metafiles is ([this](https://github.com/y9miao/VLSG)). Additionally, generate ``labels.instances.align.annotated.v2.ply`` (aligns the reference and rescan coordinates) using [this](https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py) program. Add the newly generated ply files to the corresponding scene folder in ``3RScan/scenes/``. Finally, add the two [scan split](data/scan_splits/) in the ``3RScan/files/`` directory. 
+Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/`` and all files of 3DSSG to a new ``3RScan/files/`` directory within 3RScan. The additional meta files can be downloaded [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view). Download the additional meta files and move them to ``3RScan/files/``.  The original repo of the metafiles is ([this](https://github.com/y9miao/VLSG)). Additionally, generate ``labels.instances.align.annotated.v2.ply`` (aligns the reference and rescan coordinates) using [this](https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py) program. Add the newly generated ply files to the corresponding scene folder in ``3RScan/scenes/``. Finally, replace the scan splits with our [scan splits](data/scan_splits/) in the ``3RScan/files/`` directory. 
 The structure should be:
 
 ```
@@ -161,7 +161,7 @@ The last step is to predict the 3D object centers based on the [predicted segmen
 ```bash
 bash scripts/3D_center_prediction/predict_objects.sh
 ```
-The predicted centers will be stored in ``3RScan/files/Features2D/Predicted_Centers``. We again provide a jupyter notebook [here](notebooks/3D_center_prediction/visualization_predicted_objects.ipynb), to visualize the predicted object centers along with the ground truth mesh of the rescan and the reference scene.
+The predicted centers will be stored in ``3RScan/files/Features2D/Predicted_Centers``. We again provide a [jupyter notebook](notebooks/3D_center_prediction/visualization_predicted_objects.ipynb), to visualize the predicted object centers along with the ground truth mesh of the rescan and the reference scene.
 
 
 ## Evaluation and Parameter "Training" 🧪 :
