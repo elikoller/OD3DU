@@ -1,0 +1,1 @@
+If the docker container is not working, consider checking if the dino imports include all neccessary files. It is possible that you need to install them manually again.

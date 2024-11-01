@@ -17,10 +17,6 @@ sys.path.append(ws_dir)
 from utils import common, scan3r
 
 
-"""
-this code segment is used by me but is not using the preprocessing!
-"""
-
 class Scan3RIMGProjector():
     def __init__(self, cfg, split):
 

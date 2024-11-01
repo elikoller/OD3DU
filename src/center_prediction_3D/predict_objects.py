@@ -39,10 +39,6 @@ ws_dir = osp.dirname(osp.dirname(osp.abspath(__file__)))
 sys.path.append(ws_dir)
 from utils import common, scan3r, od3du_utils
 
-"""
-this currently takes only one rescan per reference scene into consideration
-"""
-
 class Evaluator():
     def __init__(self, cfg, split):
         self.cfg = cfg
@@ -303,8 +299,6 @@ def main():
     print(f"Configuration file path: {cfg_file}")
     cfg = update_config(config, cfg_file, ensure_dir = False)
 
-    #do it for the projections first
-    #also generate for the dino_:segmentation boundingboxes
     evaluate = Evaluator(cfg, split)
     evaluate.compute()
    

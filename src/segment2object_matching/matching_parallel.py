@@ -58,7 +58,7 @@ class Evaluator():
         self.model_name = cfg.model.name
 
         #parameters
-        self.k_means = cfg.parameters.k_means
+        self.k_nn = cfg.parameters.k_nn
         self.ths = cfg.parameters.threshold
         self.mode = cfg.parameters.mode
 
@@ -139,7 +139,6 @@ class Evaluator():
 
         #convert to numpy for faiss
         ref_obj_ids = np.array(ref_obj_ids)
-        #print("reference ids", ref_obj_ids)
         ref_vectors = np.array(ref_vectors)
 
         #normalize vectors
@@ -187,7 +186,7 @@ class Evaluator():
                     faiss.normalize_L2(query_vector)
 
                     #get distance and ids for the clos
-                    distances, indices = index.search(query_vector,self.k_means) #get the max of k then we already know which ones are closer :)
+                    distances, indices = index.search(query_vector,self.k_nn) #get the max of k then we already know which ones are closer :)
                     
                     # get the object ids of the closest reference vectors and the distances
                     nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
@@ -199,15 +198,12 @@ class Evaluator():
                 
                    
 
-                cosine_majorities = od3du_utils.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_means, self.ths)
+                cosine_majorities = od3du_utils.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, self.k_nn, self.ths)
                 
                 all_matches[frame_idx] = cosine_majorities
                           
 
-        #save the file in the results direcrtory
-
-        """  need to uncomment this again
-        """
+        #save the file
         result_file_path = osp.join(self.out_dir,scan_id +".h5")
         with h5py.File(result_file_path, 'w') as hdf_file:
             for frame_idx, matches in all_matches.items():
@@ -219,17 +215,10 @@ class Evaluator():
                     # Store each frame_id -> obj mapping as a dataset in the frame group
                     frame_group.create_dataset(str(frame_id), data=obj)
 
-        
-
-    #read it out
-      # Iterate through frame indices
-        # with h5py.File('matches.h5', 'r') as hdf_file:
-        #     loaded_matches = {}
-
-                
-                
+            
         return True
 
+    #compute the matches for all scans
     def compute(self):
     
         workers = 2

@@ -17,6 +17,6 @@ model:
   name: DinoV2
 
 parameters: 
-    k_means: 5
+    k_nn: 5
     threshold: 0.6
     mode: "avg" #how the raw features get processed to reduce dimensionality for the test - will just be saved in Predicted matches - caution not to overwrite if mode changes

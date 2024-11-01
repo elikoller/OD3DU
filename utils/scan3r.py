@@ -169,12 +169,6 @@ def get_camera_in_ref_coord(data_dir,camera_coord, scan_id):
     camera_coord = get_center_in_ref_coord(data_dir,camera_coord, scan_id)
     return camera_coord
 
-"""
-end of added by Elena
-"""
-
-
-
 def save_ply_data(data_dir, scan_id, label_file_name, save_file): 
     filename_in = osp.join(data_dir, scan_id, label_file_name) 
     file = open(filename_in, 'rb') 

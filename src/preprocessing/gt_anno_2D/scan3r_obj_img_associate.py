@@ -17,7 +17,6 @@ from utils import common, scan3r
 
 # associate image patch and obj id
 
-#I don't think I actually need this also adjust the script
 class Scan3ROBJAssociator():
     def __init__(self, cfg, split):
         #preparation of the used paths and scan infor to be able to access the needed scans
@@ -55,10 +54,9 @@ class Scan3ROBJAssociator():
                 self.refscans2scans[ref_scan_id].append(scan['reference'])
                 self.scans2refscans[scan['reference']] = ref_scan_id
                 
-        #take only the split file      
+        #take our resplit file      
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
 
         
@@ -150,9 +148,7 @@ if __name__ == '__main__':
     split = args.split
     print(f"Configuration file path: {cfg_file}")
 
-    from configs import config, update_config
     cfg = update_config(config, cfg_file, ensure_dir = False)
    
-    split = "train"
     scan3r_img_projector = Scan3ROBJAssociator(cfg, split=split)
     scan3r_img_projector.annotate_scans()

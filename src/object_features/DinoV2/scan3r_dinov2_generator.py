@@ -52,9 +52,6 @@ from dataclasses import dataclass
 #     device = torch.device("cuda")
 # larg = tyro.cli(LocalArgs)
 
-"""
-These features are only computed to see how close they are to the scenegraph features
-"""
 class Scan3rDinov2Generator():
     def __init__(self, cfg, split, for_proj = False, for_dino_seg = False):
         #get the paths and the necessary info to access the model and the data
@@ -101,7 +98,6 @@ class Scan3rDinov2Generator():
     
 
         for ref_scan in ref_scans_split:
-            #self.all_scans_split.append(ref_scan)
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
             if rescans:
@@ -423,13 +419,6 @@ class Scan3rDinov2Generator():
                             # Save the feature vector as a dataset within the frame group
                             frame_group.create_dataset(object_key, data=feature_vector, compression="gzip")
 
-            #how to access it
-            # with h5py.File(out_file, 'r') as hdf_file:
-            #     # Iterate over each frame_idx (which corresponds to the groups in the HDF5 file)
-            #     for frame_idx in hdf_file.keys():
-            #         # Initialize a dictionary for each frame_idx
-           
-
 
 
             #save for the reference scan which has a different structure
@@ -446,16 +435,7 @@ class Scan3rDinov2Generator():
                         hdf_file.create_dataset(object_key, data=stacked_features, compression="gzip")
 
 
-            #how to access it 
-            # features = {}
-
-            # # Open the HDF5 file for reading
-            # with h5py.File(out_file, 'r') as hdf_file:
-            #     # Iterate over each object ID (which corresponds to the dataset keys)
-         
-
-         
-
+    
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess Scan3R')
     parser.add_argument('--config', type=str, default='', help='Path to the config file')

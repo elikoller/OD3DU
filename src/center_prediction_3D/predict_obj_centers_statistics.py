@@ -34,10 +34,6 @@ sys.path.append(ws_dir)
 from configs import config, update_config
 from utils import common, scan3r, od3du_utils
 
-"""
-this currently takes only one rescan per reference scene into consideration
-"""
-
 class Evaluator():
     def __init__(self, cfg, split):
         self.cfg = cfg
@@ -131,6 +127,7 @@ class Evaluator():
         
         return smaller_bbox
 
+    #checks if a center is within the defined boundingbox
     def is_in_boundingbox(self, center, boundingbox):
         min_coords = np.min(boundingbox, axis=0)
         max_coords = np.max(boundingbox, axis=0)
@@ -145,55 +142,6 @@ class Evaluator():
         max_point = np.max(points, axis=0)  # Maximum x, y, z
         return min_point, max_point
 
-    def boundingbox_iou(self,boundingbox, pcl):
-        
-        pred_bbox = self.compute_bounding_box(pcl)
-        gt_bbox = self.compute_bounding_box(boundingbox)
-
-        #get the different sizes
-        pred_size = pred_bbox[1] - pred_bbox[0]
-        gt_size = gt_bbox[1] - gt_bbox[0]
-
-        #sort them
-        sorted_pred_size = np.sort(pred_size)
-        sorted_gt_size = np.sort(gt_size)
-
-        adjusted_size = np.empty_like(pred_size)
-        for i in range(3):
-            adjusted_size[np.argsort(pred_size)[i]] = sorted_gt_size[i]
-
-        #adjust the predicted box around its center such that it fits the gt boundingbox in terms of dimensions, keep the predicted aspect ratio
-        pred_center = (pred_bbox[0] + pred_bbox[1]) / 2
-        adjusted_bbox_min = pred_center - (adjusted_size / 2)
-        adjusted_bbox_max = pred_center + (adjusted_size / 2)
-
-        min1 = np.min(boundingbox, axis=0)  
-        max1 = np.max(boundingbox, axis=0)  
-        min2 = adjusted_bbox_min 
-        max2 = adjusted_bbox_max
-
-        # Compute the intersection box
-        intersect_min = np.maximum(min1, min2) 
-        intersect_max = np.minimum(max1, max2)  
-
-        # Compute intersection box dimensions
-        intersect_dims = np.maximum(intersect_max - intersect_min, 0)  
-        intersection_volume = np.prod(intersect_dims)  
-
-        # Compute volumes of each bounding box
-        volume1 = np.prod(max1 - min1)  
-        volume2 = np.prod(max2 - min2)  
-
-        # Compute union volume
-        union_volume = volume1 + volume2 - intersection_volume
-
-        # Compute IoU
-        iou = intersection_volume / union_volume if union_volume > 0 else 0
-        return iou 
-            
-
-
-
 
     def compute_centers(self,scan_id, overlap_threshold):
 
@@ -201,7 +149,6 @@ class Evaluator():
         frame_idxs_list = scan3r.load_frame_idxs(self.scans_scenes_dir,scan_id)
         frame_idxs_list.sort()
        
-        
         #access the segmentation of the scan_id
         segmentation_info_path = osp.join(self.scans_files_dir, "Segmentation/DinoV2/objects", scan_id + ".h5")
         segmentation_data = od3du_utils.read_segmentation_data(segmentation_info_path)
@@ -358,7 +305,6 @@ class Evaluator():
         precisions = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         recalls = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         f1s = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
-        boundingboxes = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         avg_center_distance = np.zeros((len(self.minimum_points), len(self.minimum_votes)))
         
 
@@ -387,10 +333,7 @@ class Evaluator():
         # extract object points and IDs from the pickle data
         ref_gt_ids = data['objects_id']
         new_objects = list(set(gt_ids) - set(ref_gt_ids))
-        if len(new_objects) > 0:
-            print("scan id has new objects", scan_id)
-
-
+        
         #calculate the different metrics
         for j, min_point in enumerate(self.minimum_points):
             for i, min_vote in enumerate(self.minimum_votes):
@@ -401,7 +344,6 @@ class Evaluator():
                 true_positives = 0
                 false_negatives = 0
                 false_positives = 0
-                ious = []
                 center_difference = []
 
                 #remove points which would not pass
@@ -431,8 +373,6 @@ class Evaluator():
                                 pred_center = predicted[obj_id]['center']
                                 distance = np.linalg.norm(pred_center - gt_center)
                                 center_difference.append(distance)
-                                bbox_iou = self.boundingbox_iou(boundingbox, predicted[obj_id]["points"])
-                                ious.append(bbox_iou)
                                 matched = True
                                 matched_predicted_ids.add(obj_id) 
                                 if self.is_in_boundingbox(pred_center, boundingbox):
@@ -448,7 +388,7 @@ class Evaluator():
                 # Calculate false positives (predicted centers that did not match any ground truth center)
                 false_positives = false_positives +  len(predicted) - len(matched_predicted_ids)
             
-                # Calculate precision, recall, and false positive rate
+                # Calculate precision, recall, f1 score, center differnce
                 if true_positives + false_positives == 0:
                     precision = 0.0
                 else:
@@ -464,11 +404,6 @@ class Evaluator():
                 else:
                     f1_score = 2 * (precision * recall) / (precision + recall)
 
-                if len(ious) > 0:
-                    avg_iou = sum(ious) / len(ious)
-                else:
-                    avg_iou = 0.0
-
                 if len(center_difference) > 0:
                     avg_center = sum(center_difference) / len(center_difference)
                 else:
@@ -480,11 +415,10 @@ class Evaluator():
                 precisions[j][i]= precision
                 recalls[j][i] = recall
                 f1s[j][i] =  f1_score
-                boundingboxes[j][i] = avg_iou
                 avg_center_distance[j][i] = avg_center
 
 
-        return precisions,recalls,f1s, boundingboxes, avg_center_distance
+        return precisions,recalls,f1s, avg_center_distance
           
 
     def compute(self, obverlap_threshold):
@@ -492,34 +426,21 @@ class Evaluator():
         all_precision = []
         all_recall = []
         all_f1 = []
-        all_boxes = []
         all_centers = []
-        best_scenes = []
-        best_f1scores = []
-        best_precisions = []
-        best_recalls = []
-        best_distances = []
-
+      
     
     # Use tqdm for progress bar, iterating as tasks are completed
         with tqdm(total=len(self.scan_ids)) as pbar:
             for scan_id in self.scan_ids:
                 print("scanid", scan_id)
-                precisions, recalls, f1s, bounsingboxes, avg_centers = self.compute_statistics(scan_id, obverlap_threshold)
+                precisions, recalls, f1s, avg_centers = self.compute_statistics(scan_id, obverlap_threshold)
                 
                 # get the result matricies
                 all_precision.append(precisions)
                 all_recall.append(recalls)
                 all_f1.append(f1s)
-                all_boxes.append(bounsingboxes)
                 all_centers.append(avg_centers)
 
-
-                best_scenes.append(scan_id)
-                best_f1scores.append(f1s[0][0])
-                best_precisions.append(precisions[0][0])
-                best_recalls.append(recalls[0][0])
-                best_distances.append(avg_centers[0][0])
                 print("added results of scan id ", scan_id, " successfully")
                 pbar.update(1)
 
@@ -528,13 +449,7 @@ class Evaluator():
         result = {"precision": np.mean(all_precision, axis = 0),
                 "recall": np.mean(all_recall,  axis = 0),
                 "f1": np.mean(all_f1,  axis = 0),
-                "iou_boxes": np.mean(all_boxes,  axis = 0),
-                "mean_center_difference": np.mean(all_centers,  axis = 0),
-                "s_scene": best_scenes,
-                "s_precision":best_precisions, 
-                "s_recall": best_recalls,
-                "s_f1":best_f1scores,
-                "s_distance": best_distances
+                "mean_center_difference": np.mean(all_centers,  axis = 0)
                 }
 
     

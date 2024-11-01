@@ -38,7 +38,7 @@ from configs import config, update_config
 
 
 """
-this file is adapted from the demo notebook provided by facebook, found in the src folder
+segments of this file are adapted from the dino notebooks which you can find in the src folder of this directory
 """
 
 class DinoSegmentor():
@@ -90,9 +90,9 @@ class DinoSegmentor():
         #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
 
-        ## get all scans within the split(ref_scan + rescan)
+    
         for ref_scan in ref_scans_split[229:]:
-            #self.all_scans_split.append(ref_scan)
+
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
             if rescans:
@@ -134,10 +134,10 @@ class DinoSegmentor():
         
     """
     Code Duplication: this file is run in a docker environment where the dependencies dont align with the ones used in the rest of the project
-    hence we dublicate some code from the utils section
+    hence we dublicate some code from the utils scan3r section
     """
 
-    
+
     #this returns the image patshs for every frame_id
     def load_frame_paths(self,data_dir, scan_id, skip=None):
         frame_idxs = self.load_frame_idxs(osp.join(data_dir, "scenes"), scan_id, skip)

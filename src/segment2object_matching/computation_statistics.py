@@ -55,7 +55,7 @@ class Evaluator():
         self.model_name = cfg.model.name
 
         #parameters
-        self.k_means = cfg.parameters.k_means
+        self.k_nn = cfg.parameters.k_nn
         self.ths = cfg.parameters.threshold
 
         #patch info 
@@ -85,10 +85,8 @@ class Evaluator():
         #take only the split file      
         self.resplit = "resplit_" if cfg.data.resplit else ""
         ref_scans_split = np.genfromtxt(osp.join(self.scans_files_dir_mode, '{}_{}scans.txt'.format(split, self.resplit)), dtype=str)
-        #print("ref scan split", ref_scans_split)
         self.all_scans_split = []
 
-        ## get all scans within the split(ref_scan + rescan)
         for ref_scan in ref_scans_split[:]:
             # Check and add one rescan for the current reference scan
             rescans = [scan for scan in self.refscans2scans[ref_scan] if scan != ref_scan]
@@ -135,8 +133,8 @@ class Evaluator():
         new_objects = list(set(present_obj_scan) - set(present_obj_reference))
        
       
-        scan_cosine_iou_metric_precision = []
-        scan_cosine_iou_metric_recall = []
+        scan_cosine_metric_precision = []
+        scan_cosine_metric_recall = []
         scan_cosine_metric_f1 = []
 
 
@@ -152,12 +150,12 @@ class Evaluator():
                 #initialze the matricies we will fill
                 #get the lengths of the parameters
                 ths_len = len(self.ths)
-                k_means_len = len(self.k_means)
+                k_nn_len = len(self.k_nn)
 
                 #initialize the resultmatrix for this frame
-                cosine_metric_precision = np.zeros((ths_len,k_means_len))
-                cosine_metric_recall = np.zeros((ths_len,k_means_len))
-                cosine_metric_f1 = np.zeros((ths_len,k_means_len))
+                cosine_metric_precision = np.zeros((ths_len,k_nn_len))
+                cosine_metric_recall = np.zeros((ths_len,k_nn_len))
+                cosine_metric_f1 = np.zeros((ths_len,k_nn_len))
             
 
                 #access the gt for this frame
@@ -172,7 +170,7 @@ class Evaluator():
     
                 #get the correct computations and iteraste through every combination
                 for t_idx, th in enumerate (self.ths):
-                    for k_idx, k in enumerate (self.k_means):
+                    for k_idx, k in enumerate (self.k_nn):
                     
                         #translate the matched object ids to pixellevel of the frame
                         cosine_pixel_level = od3du_utils.generate_pixel_level(segmentation_data[frame_idx],predicted_ids[frame_idx], self.image_height, self.image_width)
@@ -201,10 +199,10 @@ class Evaluator():
 
                             if gt_max_id != 0:
                                 #we look at a seen object
-                                if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
+                                if gt_max_id not in new_objects: #we only look at the present objects in the reference scan
                                     #the predicted id does not match the gt so already wront
                                     if (id != gt_max_id):
-                                        #tbc
+                                        #ref obj got assigned as different ref obj
                                         if (id > 0):
                                             fp += 1
                                             continue
@@ -212,7 +210,7 @@ class Evaluator():
                                     else:
                                         tp += 1
                                         detected_gt_ids.add(gt_max_id)
-                                #tbc added logic for new objects
+                               #new object got assigned as reference obj
                                 elif gt_max_id in new_objects:
                                     if id > 0:
                                         fp += 1
@@ -224,7 +222,7 @@ class Evaluator():
                                 continue  # Skip background
                             
                             # If this ground truth object was not detected
-                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects):  #tbc the new objects part
+                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects): 
                                 fn += 1
 
 
@@ -239,12 +237,12 @@ class Evaluator():
                         cosine_metric_f1[t_idx][k_idx] =  f1_score
 
 
-                scan_cosine_iou_metric_precision.append(cosine_metric_precision)
-                scan_cosine_iou_metric_recall.append(cosine_metric_recall)
+                scan_cosine_metric_precision.append(cosine_metric_precision)
+                scan_cosine_metric_recall.append(cosine_metric_recall)
                 scan_cosine_metric_f1.append(cosine_metric_f1)
 
-        
-        return  np.nanmean(scan_cosine_iou_metric_precision,axis=0), np.nanmean(scan_cosine_iou_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
+        #return the mean over all scenes
+        return  np.nanmean(scan_cosine_metric_precision,axis=0), np.nanmean(scan_cosine_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
 
     
     def compute_scan(self,scan_id, mode):
@@ -318,12 +316,12 @@ class Evaluator():
                 #initialze the matricies we will fill
                 #get the lengths of the parameters
                 ths_len = len(self.ths)
-                k_means_len = len(self.k_means)
+                k_nn_len = len(self.k_nn)
 
                 #initialize the resultmatrix for this frame
-                cosine_metric_precision = np.zeros((ths_len,k_means_len))
-                cosine_metric_recall = np.zeros((ths_len,k_means_len))
-                cosine_metric_f1 = np.zeros((ths_len,k_means_len))
+                cosine_metric_precision = np.zeros((ths_len,k_nn_len))
+                cosine_metric_recall = np.zeros((ths_len,k_nn_len))
+                cosine_metric_f1 = np.zeros((ths_len,k_nn_len))
                 
 
                 #initialize the distances
@@ -342,7 +340,7 @@ class Evaluator():
                     faiss.normalize_L2(query_vector)
 
                     #get distance and ids for the clos
-                    distances, indices = index.search(query_vector,max(self.k_means)) #get the max of k then we already know which ones are closer :)
+                    distances, indices = index.search(query_vector,max(self.k_nn)) #get the max of k then we already know which ones are closer :)
 
                     # get the object ids of the closest reference vectors and the distances
                     nearest_obj_ids = [ref_obj_ids[idx] for idx in indices[0]]
@@ -364,7 +362,7 @@ class Evaluator():
     
                 #get the correct computations and iteraste through every combination
                 for t_idx, th in enumerate (self.ths):
-                    for k_idx, k in enumerate (self.k_means):
+                    for k_idx, k in enumerate (self.k_nn):
                         # get the majority vote of the k closest points
                         cosine_majorities = od3du_utils.get_majorities(cosine_distanc, cosine_obj_ids, frame_obj_ids, k, th)
 
@@ -394,10 +392,10 @@ class Evaluator():
 
                             #if the gt id is 0 we have no info
                             if gt_max_id != 0:
-                                if gt_max_id not in new_objects: #tbc we only look at the present objects in the reference scan
+                                if gt_max_id not in new_objects: #we only look at the present objects in the reference scan
                                     #the predicted id does not match the gt so already wront
                                     if (id != gt_max_id):
-                                        #tbc
+                                        #ref obj got predicted as different ref obj
                                         if (id > 0):
                                             fp += 1
                                             continue
@@ -405,7 +403,7 @@ class Evaluator():
                                     else:
                                         tp += 1
                                         detected_gt_ids.add(gt_max_id)
-                                #tbc added logic for new objects
+                                #new_obj got predicted as ref obj
                                 elif gt_max_id in new_objects:
                                     if id > 0:
                                         fp += 1
@@ -417,7 +415,7 @@ class Evaluator():
                                 continue  # Skip background
                             
                             # If this ground truth object was not detected
-                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects):  #tbc the new objects part
+                            if (gt_id not in detected_gt_ids) and (gt_id not in new_objects): 
                                 fn += 1
 
 
@@ -438,7 +436,7 @@ class Evaluator():
 
         
 
-                        
+        #return mean over all scenes       
         return  np.nanmean(scan_cosine_metric_precision,axis=0), np.nanmean(scan_cosine_metric_recall,axis=0), np.nanmean(scan_cosine_metric_f1,axis=0)
 
     def compute(self, mode):
@@ -474,10 +472,10 @@ class Evaluator():
                     best_recalls.append(cosine_metric_recall[0][0])
                 # progressed
                 pbar.update(1)
-        #create sesult dict
-        result = {"cosine_iou_metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
-                  "cosine_iou_metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
-                  "cosine_mectric_f1": np.mean(all_cosine_metric_f1, axis = 0),
+        #create result dict
+        result = {"metric_precision": np.mean(all_cosine_metric_precision, axis = 0),
+                  "metric_recall": np.mean(all_cosine_metric_recall, axis = 0),
+                  "mectric_f1": np.mean(all_cosine_metric_f1, axis = 0),
                 }
                   
         #save the file in the results direcrtory
@@ -505,6 +503,7 @@ def main():
 
     evaluate = Evaluator(cfg, split)
     print("start avg computation")
+    #to make the features from dino more compact we use avg
     evaluate.compute("avg")
 
     # evaluate.compute("max")

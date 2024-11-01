@@ -11,7 +11,7 @@ data :
   img_encoding:
     # image patch config
     resize_w: 224 # resize image for backbone GCVit
-    resize_h:  224 #126 in the features 3d it is also 224 but changed by elena
+    resize_h:  224 
     img_rotate: True # rotate w,h for backbone GCVit
     patch_w: 32 # number of patchs in width
     patch_h: 18 #number of patches in height

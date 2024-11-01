@@ -13,7 +13,7 @@ from utils import scan3r
 
 
 
-"""  functions on accessing data
+"""  functions for accessing data
 """
  #return an object with the structure:scan_id: frame_number: frame_obj_id: matched id
 def read_matching_data(scans_files_dir, scan_id):
@@ -149,7 +149,7 @@ def read_scan_data(scan_path):
 """
 functionc for matching Prediction
 """
-
+#get the majorities for the knn
 def get_majorities(distanc, obj_ids ,frame_ids, k , th):
     #make te majority voting
     majorities = {}
@@ -176,7 +176,7 @@ def get_majorities(distanc, obj_ids ,frame_ids, k , th):
 
     return majorities
 
-
+#use the mask information to generte an image on pixel level
 def generate_pixel_level(segmentation,majorities, image_height, image_width):
     pixel_ids = np.zeros((image_height, image_width))
     #print(majorities.keys())
@@ -193,6 +193,7 @@ def generate_pixel_level(segmentation,majorities, image_height, image_width):
 
     return pixel_ids
 
+#quantize an image into patches
 def quantize_to_patch_level(pixelwise_img, image_height, image_width, image_patch_h, image_patch_w):
     #get the shape of the pixelwise img
     patch_width = int(image_width/ image_patch_w)
