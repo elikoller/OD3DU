@@ -8,6 +8,12 @@ source $CONDA_BIN/activate OD3DU
 
 cd $OD3DU_SPACE
 
+
+# generate patch-level features with Dinov2
+python ./src/segment2object_matching/matching_parallel.py \
+    --config ./src/segment2object_matching/matching_param.yaml \
+    --split train
+
 # generate patch-level features with Dinov2
 python ./src/segment2object_matching/matching_parallel.py \
     --config ./src/segment2object_matching/matching_param.yaml \
