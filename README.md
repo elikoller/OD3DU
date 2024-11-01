@@ -204,4 +204,5 @@ In this project, we use (parts of) the official implementations of the following
 - [SceneGraphLoc](https://github.com/y9miao/VLSG) 
 - [SGAligner](https://github.com/sayands/sgaligner) 
 - [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG)
+- [DinoV2](https://github.com/facebookresearch/dinov2)
 
