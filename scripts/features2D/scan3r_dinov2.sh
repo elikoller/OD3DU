@@ -7,7 +7,6 @@ source $CONDA_BIN/activate OD3DU
 
 cd $OD3DU_SPACE
 
-# generate patch-level features with Dinov2
 python ./src/object_features/DinoV2/scan3r_dinov2_generator.py \
     --config ./src/object_features/DinoV2/scan3r_dinov2_generator.yaml\
     --split train \

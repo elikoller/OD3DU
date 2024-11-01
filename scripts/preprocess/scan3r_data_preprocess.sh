@@ -5,7 +5,6 @@ export CONDA_BIN='/local/home/ekoller/anaconda3/bin'
 
 
 # activate conda env
-# conda activate VLSG
 source $CONDA_BIN/activate OD3DU
 
 cd $OD3DU_SPACE
