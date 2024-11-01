@@ -2,7 +2,6 @@
 from yacs.config import CfgNode as CN
 import os.path as osp
 import os
-
 from utils import common
 
 _C = CN()
