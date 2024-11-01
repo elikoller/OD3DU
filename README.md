@@ -17,13 +17,14 @@ OD3DU operates in low-dynamic real-world indoor environments. Given a reference 
 
 ## Code Structure:
 
+The code is organized the following way:
 ```
 ├── OD3DU
 │   ├── configs                         <- configuration definition
 │   ├── src
 │   │   │── preprocessing               <- preprocessing of scene graph
 │   │   │── gt_annotations              <- generates 2D ground truths 
-│   │   │── rescan_segmentation         <- segmentation of the rescan sequence using Mask2Former x DinoV2
+│   │   │── rescan_segmentation         <- segmentation of the rescan sequence using Mask2Former x DinoV2 (needs docker)
 │   │   │── object_2D_features          <- generates object features for both reference scene graph and rescan
 │   │   │── segment2object_matching     <- matches predicted segments to reference objects
 │   │   │── center_prediction_3D        <- predicts 3D object centers
@@ -34,7 +35,7 @@ OD3DU operates in low-dynamic real-world indoor environments. Given a reference 
 │   │── README.md                    
 ```
 
-### Dependencies:
+## Dependencies:
 
 The project has been tested on Ubuntu 20.04.
 The main dependencies of the project are the following:
@@ -52,22 +53,21 @@ conda env create -f environment.yml
 ```
 Other dependences:
 
-For the semantic segmentation a separate docker container must be employed due to incompatible dependencies (<a href="https://github.com/facebookresearch/dinov2/issues/353">source</a>). The docker can be pulled the following way:
+For the semantic segmentation (rescan_segmentation) a separate docker container must be employed due to incompatible dependencies (<a href="https://github.com/facebookresearch/dinov2/issues/353"> docker source</a>). The docker can be pulled the following way:
 
 
 ```bash
 docker pull spped2000/dinov2manyproblem:latest
 ```
 
-
-## Dataset Generation:
-### Download Dataset - 3RScan + 3DSSG + 
-Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/``, all files of 3DSSG to a new ``3RScan/files/`` directory within Scan3R. The additional meta files are available to be downloaded [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view). Download the additional meta files ([source repo](https://github.com/y9miao/VLSG)) and move them to ``3RScan/files/``. Additionaly, generate ``labels.instances.align.annotated.v2.ply`` (aligns the reference and rescan) using [this](https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py) repo. Add the newly generated ply file to the corresponding scene folder in ``3RScan/scenes/``.
+## Download Dataset: 3RScan + 3DSSG + Metadata
+Download [3RScan](https://github.com/WaldJohannaU/3RScan) and [3DSSG](https://3dssg.github.io/). Move all R3Scan files to ``3RScan/scenes/``, all files of 3DSSG to a new ``3RScan/files/`` directory within 3RScan. The additional meta files are available to be downloaded [here](https://drive.google.com/file/d/1abvycfnwZFBBqYuZN5WFJ80JAB1GwWPN/view). Download the additional meta files and move them to ``3RScan/files/``.  The source of the meta files is this ([repo](https://github.com/y9miao/VLSG)). Additionaly, generate ``labels.instances.align.annotated.v2.ply`` (aligns the reference and rescan) using [this](https://github.com/ShunChengWu/3DSSG/blob/main/data_processing/transform_ply.py) program. Add the newly generated ply files to the corresponding scene folder in ``3RScan/scenes/``. Finally, add the two [scan split](data/scan_splits/) in the ``3RScan/files/`` directory. 
 The structure should be:
 
 ```
 ├── 3RScan
 │   ├── files                 <- all 3DSSG files and additional meta files
+│   │   scan split files      <- the resplit files for the scenes
 │   │   meta files
 │   ├── scenes                <- scans (3RScan)
 ```
@@ -75,78 +75,74 @@ The structure should be:
 Please do not forget to unzip the sequence files within the scenes directory.
 
 
+## Code Usage
+Once you have everything prepared, we can start to precess the dataset and do our computations. Please note the following: for every script you need to adjust the env variables to correspond to your file path (OD3DU_SPACE, San3R_ROOT_DIR, CONDA_BIN). You can do this in the corresponding file in the scripts directory. Within the scripts there are the commands for the program exectution. If you are not planning on doing evaluations on the train set, please comment the commands out which start the program for the train set. We only store evaluation results and the preprocessing for the train set.
 
-### Dataset Pre-process:
-We pre-process the information provided in the 3RScan dataset and the metafiles in order to get scene graph information along with 2D and 3D ground truths. The code for the preprocessing can be found here ``src/preprocessing``
+You can find the different steps of OD3DU explained in depth in the corresponding thesis ADD LINK HERE.
 
-The first script generates the scene graph datastructures of the scenes for both the train and test set. If you are not intending on performing parameter optimizations based on the train set, you can comment the commands for the train script out. Please also set the env variables of OD3DU_SPACE to the repo path, the San3R_ROOT_DIR  and CONDA_BIN
+### Dataset Pre-process (Reference Scene and Rescan):
+We pre-process the information provided in the 3RScan dataset and the metafiles in order to get scene graph information along with 2D and 3D ground truths. The code for the preprocessing can be found here ``src/preprocessing``.
 
-Don't forget to set the env variables "VLSG_SPACE" as the repository path,  set "Data_ROOT_DIR" as the path to "3RScan" dataset and set "CONDA_BIN" to accordingly in the bash script.
+The first script generates the scene graph datastructures (edges, 3D bounding boxes, 3D object centers, object ID's) of the scenes for both the train and test set. If you are not intending on performing parameter optimizations based on the train set, you can comment the commands for the train set out.
 
 ```bash
 bash scripts/preprocess/scan3r_data_preprocess.sh
 ```
-The result processed data will be save to "{Data_ROOT_DIR}/files/orig".
-<!-- > __Note__ To adhere to our evaluation procedure, please do not change the seed value in the files in ``configs/`` directory.  -->
-```
-
-├── 3RScan
-│   ├── files                 <- all 3RScan and 3DSSG meta files and annotations
-│   │   ├──Segmentation       <- Segmentations of the input rescan
-│   │   ├──Features2D         <- Object features generated by DinoV2 (reference and rescan)
-│   │   ├──Predicted_Matches  <- input segment to reference object matches
-│   │   ├──Predicted_Centers  <- Predicted 3D object centers
-│   │   ├──Results            <- if evaluations are run, all results will be saved in this folder
-│   │   ├──orig               <- Scene Graph Data
-│   │   ├──patch_anno         <- 2D Ground truth patch-object annotation of the scenes
-│   │   ├──gt_projection      <- 2D Ground truth projection annotation of the scenes
-│   │   meta files
-│   ├── scenes                <- scans
-```
+The resulting processed data will be save to  ``3RScan/files/orig``.
 
 
+### Generating (Ground Truth) Object Annotation (Reference Scene and Rescan):
+R3Scan provides a semantically annotated mesh on instance level. To extract 2D ground truth projections for the rescan and object annotations for the reference scan we run the following script. Since some edges of the projection can be jittery we also compute a ground truth on patch wise level (30x30  pixels). This is later used for evaluation purposes. 
 
-also some more confusing stuff is the following: the dataset did not provide the graphdata for the evaluation set so in this paper: the original validation set was taken and then split into validation and test. hence for the dataset only the test and validation set get accessed
-
-
-
-### Generating Ground Truth Patch-Object Annotastion
-To generate ground truth annotation, use : 
 ```bash
 bash scripts/gt_annotations/scan3r_gt_annotations.sh
 ```
-This will create a pixel-wise and patch-level ground truth annotations for each query image. These files will be saved  to "{Data_ROOT_DIR}/files/gt_projection and "{Data_ROOT_DIR}/files/patch_anno only for the eval and train set tho
-the current number of the patches is 32x18 but this can be changed, look if there is also th, just take max instead of th == 0.2
 
-while it migh be confusing the ground truth for the reference is actually the data we already have provided: our assumption is that we have the mesh -> so there for the reference scans we will actually compute with them. for the rescans however this is the actual ground truth which we will also use for comparison later on
+The results will be saved in ``3RScan/files/gt_projection`` and ``3RScan/files/patch_anno``.
 
 
+### Semantic Segmentation for Rescan Input:
 
+For the rescan scenes at time ti we segment the input frames using a pretrained model. We chose the semantic segmentation model, built on a[Mask2Former](https://github.com/facebookresearch/Mask2Former) pipeline with a [DinoV2](https://github.com/facebookresearch/dinov2) ViT-g/14 backbone and trained on ADE20K. To run the semantic segmentation, please employ the [docker container](#dependencies) and let the script run within that container. From this script we obtain the semantic masks, along with corresponding bounding boxes and mask ID's. Again for the evaluation purposes we also store the masks on a patch-wise level to be able to compare them to the grond truth.
 
-### Elena's Code
-the first approach involved bounduingboxes  intersection for speedup but this was slow & not good enough but it helped a lot to visualize the whole dataset + understand it better
-
-
-
-### generating a semantic segmentation for the input images
-the bigger goal is to generate dinov features for different objects in the input images and matching them to the objects in the scene. We dont want to train a network but use already pretrained ones. We also tried to divide inpout and gt into same size patches and compare these however the result was not good. Hence we look into a segmentation of the input image to get a better result. We use dinov2 transform2mask, a pretrained model on akd20 something, the segmentation masks are stored here "{Data_ROOT_DIR}/files/Features2D/dino_segmentation. 
-since the requirements are a bit tought to manage and use a different version of cuda than the rest, we used the dockercontainer from the issue section so get this part running. we store the info in a h5 file and it contains boundingboxes, obj_ids, masks and so on a patch level and boundingboxes
 
 ```bash
 bash scripts/dino_segmentation/semantic_segmentation_dino.sh
 ```
 
+The segmentation files for the rescans will be stored in this directory: ``3RScan/files/dino_segmentation``
 
-### Feature generation
-To compare the inhalt of the input images to the current situation we need some features. in order to do that we do the following:  for the gt projection we go into the projection and for each individual object we compute bounding boxes based on the quantization into the 32x18 patches. For the input images we take the generated dinov2 mask and also quantize it into 32x18 patches in order to eliminate noise in the segmentation. then we compute based on the same pretrained network the features for each object/ segment by resizing it into 224x224 big patches.
-      [Dino v2](https://dinov2.metademolab.com/). 
-To generate the features, use : 
+### Feature generation (Reference Scene and Rescan):
+In order to obtain a featrue representation of the object present in both reference scene and rescan, we compute feature vectors using [DinoV2](https://github.com/facebookresearch/dinov2). We compute object features for the reference scene on the basis of the object [annotations](#generating-ground-truth-object-annotation-reference-scene-and-rescan) of the scene graph and for the rescan we use the [predicted masks](#semantic-segmentation-for-rescan-input) to extract the objects.
+
+To generate the features, please use : 
 ```bash
 bash scripts/features2D/scan3r_dinov2.sh
 ```
-This will create patch-level features for query images and save in "{Data_ROOT_DIR}/Features2D/dino_segmentation/Dinov2/patch_32_18_scan". for the projection and at "{Data_ROOT_DIR}/Features2D/projection/Dinov2/patch_32_18_scan"
+
+The features for the reference scan can be found in ``3RScan/files/Features2D/projection`` and for the rescan in ``3RScan/files/Features2D/dino_segmentation``.
 
 
+### Segment to Object Matches (Rescan):
+This script computes the correspondance between the [predicted segments](#semantic-segmentation-for-rescan-input) and the reference objects based on the [computed features](#feature-generation-reference-scene-and-rescan). The result is a mapping between segment to object instance.
+
+To generate the matches, use : 
+```bash
+bash scripts/segment_to_object_matching/obj_matches.sh
+```
+The resulting file will be saved in ``3RScan/files/Features2D/Predicted_Matches``
+
+
+### Predict 3D Object Centers (Rescan):
+The last step is to predict the 3D object centers based on the [predicted segmentation](#segment-to-object-matches-rescan) to object mappings.  For this you can run the following script:
+
+```bash
+bash scripts/3D_center_prediction/predict_objects.sh
+```
+The predicted centers will be stored in ``3RScan/files/Features2D/Predicted_Centers``
+
+
+## Evaluation and Parameter "Training":
 
 ### Computation of best parameters "Training
 To generate the tables with the accuracies, use : 
@@ -154,11 +150,7 @@ To generate the tables with the accuracies, use :
 bash scripts/segment_to_object_matching/computation.sh
 ```
 
-### predict the feature matches
-To generates the feature matches for the semantig segments : 
-```bash
-bash scripts/segment_to_object_matching/obj_matches.sh
-```
+
 
 ### Predict objects
 
